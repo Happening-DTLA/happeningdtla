@@ -1,0 +1,620 @@
+<title>Where The Money Lands</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:      #f4f5f3;
+    --paper-2:    #eaece9;
+    --ink:        #16211e;
+    --ink-soft:   #3c4a46;
+    --muted:      #5a6663;
+    --rule:       #d7dcd8;
+    --rule-soft:  #e3e7e3;
+    --accent:     #12615c;
+    --accent-bg:  #e2ecea;
+    --flag:       #8c3a2b;
+    --flag-bg:    #f3e5e1;
+
+    --display: "Newsreader", Georgia, "Times New Roman", serif;
+    --body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #121715;
+      --paper-2:   #1a211e;
+      --ink:       #e8edea;
+      --ink-soft:  #c3ccc8;
+      --muted:     #93a09b;
+      --rule:      #2a342f;
+      --rule-soft: #212a26;
+      --accent:    #5cc6b8;
+      --accent-bg: #16302c;
+      --flag:      #e0a294;
+      --flag-bg:   #33211c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:     #121715;
+    --paper-2:   #1a211e;
+    --ink:       #e8edea;
+    --ink-soft:  #c3ccc8;
+    --muted:     #93a09b;
+    --rule:      #2a342f;
+    --rule-soft: #212a26;
+    --accent:    #5cc6b8;
+    --accent-bg: #16302c;
+    --flag:      #e0a294;
+    --flag-bg:   #33211c;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16.5px;
+    line-height: 1.62;
+    margin: 0;
+    padding: clamp(1.5rem, 5vw, 4.5rem) clamp(1.1rem, 5vw, 2rem) 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet { max-width: 44rem; margin: 0 auto; }
+
+  /* ---- masthead ---- */
+  .masthead { border-bottom: 2px solid var(--ink); padding-bottom: 1.6rem; }
+  .kicker {
+    font-family: var(--mono);
+    font-size: .69rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: clamp(2.3rem, 6.5vw, 3.4rem);
+    line-height: 1.04;
+    letter-spacing: -.02em;
+    margin: 0 0 .85rem;
+    text-wrap: balance;
+  }
+  .standfirst {
+    font-family: var(--display);
+    font-size: clamp(1.05rem, 2.4vw, 1.22rem);
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 0 0 1.5rem;
+    max-width: 34rem;
+    text-wrap: pretty;
+  }
+  .dateline {
+    display: flex; flex-wrap: wrap; gap: .5rem 1.6rem;
+    font-family: var(--mono); font-size: .73rem;
+    letter-spacing: .04em; color: var(--muted);
+  }
+  .dateline span { white-space: nowrap; }
+
+  /* ---- structure ---- */
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.45rem, 3.6vw, 1.85rem);
+    line-height: 1.18;
+    letter-spacing: -.012em;
+    margin: 3.6rem 0 .3rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--body);
+    font-weight: 600;
+    font-size: 1.02rem;
+    letter-spacing: -.005em;
+    margin: 2.1rem 0 .5rem;
+  }
+  p { margin: 0 0 1.05rem; max-width: 40rem; text-wrap: pretty; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  strong { font-weight: 600; }
+
+  .section-note {
+    font-family: var(--mono);
+    font-size: .69rem; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 1.5rem;
+  }
+
+  /* ---- decision blocks: D1/D2/D3 are genuinely three discrete decisions ---- */
+  .decision { margin: 3.6rem 0 0; }
+  .decision-head {
+    display: flex; align-items: baseline; gap: .85rem;
+    border-top: 1px solid var(--ink); padding-top: .9rem;
+  }
+  .decision-num {
+    font-family: var(--mono); font-weight: 600; font-size: .78rem;
+    letter-spacing: .08em; color: var(--accent);
+    padding: .16rem .45rem; background: var(--accent-bg);
+    border-radius: 2px; flex-shrink: 0;
+  }
+  .decision-head h2 { margin: 0; }
+
+  /* ---- tables ---- */
+  .table-wrap { overflow-x: auto; margin: 1.4rem 0 1.6rem; }
+  table {
+    border-collapse: collapse; width: 100%; min-width: 34rem;
+    font-size: .875rem;
+  }
+  caption {
+    text-align: left; font-family: var(--mono);
+    font-size: .69rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); padding-bottom: .7rem;
+  }
+  th, td {
+    text-align: left; padding: .62rem .8rem;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: var(--mono); font-size: .7rem;
+    letter-spacing: .07em; text-transform: uppercase;
+    color: var(--muted); font-weight: 500;
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody th { font-weight: 500; color: var(--ink); }
+  td.num, th.num {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right; white-space: nowrap;
+  }
+  tr.total td, tr.total th {
+    border-top: 1px solid var(--rule);
+    border-bottom: none;
+    font-weight: 600;
+  }
+  .rec { color: var(--accent); font-weight: 600; }
+
+  /* ---- callouts ---- */
+  .callout {
+    border-left: 2px solid var(--accent);
+    background: var(--accent-bg);
+    padding: 1rem 1.15rem;
+    margin: 1.5rem 0;
+    font-size: .93rem;
+  }
+  .callout p { margin: 0; max-width: none; }
+  .callout p + p { margin-top: .7rem; }
+  .callout .label {
+    display: block; font-family: var(--mono);
+    font-size: .67rem; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: .45rem;
+  }
+  .callout.flag { border-left-color: var(--flag); background: var(--flag-bg); }
+  .callout.flag .label { color: var(--flag); }
+
+  /* ---- lists ---- */
+  ul, ol { margin: 0 0 1.15rem; padding-left: 1.15rem; max-width: 40rem; }
+  li { margin-bottom: .42rem; padding-left: .2rem; }
+  li::marker { color: var(--muted); }
+
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li {
+    display: flex; gap: .7rem; padding: .55rem 0;
+    border-bottom: 1px solid var(--rule-soft);
+    margin: 0;
+  }
+  .checklist li::before {
+    content: "☐"; color: var(--accent);
+    font-size: 1.05rem; line-height: 1.4; flex-shrink: 0;
+  }
+
+  /* ---- timeline: ordered because the sequence is load-bearing ---- */
+  .phases { list-style: none; padding: 0; margin: 1.4rem 0 0; }
+  .phases li {
+    display: grid; grid-template-columns: 7.5rem 1fr; gap: 1.1rem;
+    padding: .85rem 0; border-top: 1px solid var(--rule-soft); margin: 0;
+  }
+  .phases li:first-child { border-top: 1px solid var(--rule); }
+  .phase-when {
+    font-family: var(--mono); font-size: .76rem; font-weight: 500;
+    color: var(--accent); letter-spacing: .02em; padding-top: .12rem;
+  }
+  .phase-what { font-size: .93rem; }
+  @media (max-width: 33rem) {
+    .phases li { grid-template-columns: 1fr; gap: .2rem; }
+  }
+
+  footer {
+    margin-top: 4.5rem; padding-top: 1.4rem;
+    border-top: 2px solid var(--ink);
+    font-size: .82rem; color: var(--muted);
+  }
+  footer p { max-width: 40rem; }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  @media print {
+    body { padding: 0; font-size: 11pt; }
+    .decision, h2 { break-inside: avoid; }
+  }
+</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <p class="kicker">DTLAHappening · Partner Brief</p>
+    <h1>Where The Money Lands</h1>
+    <p class="standfirst">
+      How a ticket payment travels from a buyer's card to your bank account,
+      who carries the risk along the way, and the three decisions we need to
+      settle before the October Art Night.
+    </p>
+    <div class="dateline">
+      <span>22 August 2026</span>
+      <span>Prepared for venue partners</span>
+      <span>Decision needed by 29 August</span>
+    </div>
+  </header>
+
+  <h2>The short version</h2>
+  <p class="section-note">If you read nothing else</p>
+  <p>
+    We are recommending that <strong>each venue is the seller of record for its own
+    tickets</strong>. Money from a ticket to your event is charged on your own Stripe
+    account, your business name appears on the buyer's card statement, and
+    DTLAHappening takes a clearly-stated fee off the top. We never hold your money.
+  </p>
+  <p>
+    The practical consequence is that you keep control and you get paid directly —
+    and you also own the chargebacks and refunds for your own events, the same way
+    you would if you sold the tickets yourself at the door.
+  </p>
+  <p>
+    To make that work, each venue needs to complete a Stripe onboarding form.
+    That is the single item on the critical path, because verification takes days
+    and cannot be rushed at the end. <strong>The ask today is that you start that
+    form this week.</strong>
+  </p>
+
+  <h2>How the money actually moves</h2>
+  <p class="section-note">Plain language, no jargon</p>
+  <p>
+    We use Stripe, the same payment processor behind most online checkouts. Stripe
+    has a feature built for marketplaces — one platform, many independent
+    businesses getting paid. That is exactly our shape: one app, many venues.
+  </p>
+  <p>
+    When someone buys a ticket, the money can be routed in one of three ways.
+    They look identical to the buyer. They are very different for you. The
+    difference comes down to one question: <em>whose business is legally making
+    the sale?</em> That party is the <strong>merchant of record</strong> — the name on
+    the statement, the one the bank comes to in a dispute, and the one who owes
+    the refund.
+  </p>
+
+  <div class="decision">
+    <div class="decision-head">
+      <span class="decision-num">D1</span>
+      <h2>Who is the merchant of record</h2>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <caption>The three routing models</caption>
+        <thead>
+          <tr>
+            <th scope="col">&nbsp;</th>
+            <th scope="col">Direct charges</th>
+            <th scope="col">Destination charges</th>
+            <th scope="col">Separate transfers</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Seller of record</th>
+            <td class="rec">The venue</td>
+            <td>DTLAHappening</td>
+            <td>DTLAHappening</td>
+          </tr>
+          <tr>
+            <th scope="row">Name on card statement</th>
+            <td>Your venue</td>
+            <td>DTLAHappening</td>
+            <td>DTLAHappening</td>
+          </tr>
+          <tr>
+            <th scope="row">Who pays Stripe's fee</th>
+            <td>The venue</td>
+            <td>DTLAHappening</td>
+            <td>DTLAHappening</td>
+          </tr>
+          <tr>
+            <th scope="row">Who loses a chargeback</th>
+            <td>The venue</td>
+            <td>DTLAHappening</td>
+            <td>DTLAHappening</td>
+          </tr>
+          <tr>
+            <th scope="row">Who funds a refund</th>
+            <td>The venue</td>
+            <td>DTLAHappening</td>
+            <td>DTLAHappening</td>
+          </tr>
+          <tr>
+            <th scope="row">Whose tax form reports the sales</th>
+            <td>The venue's own 1099-K</td>
+            <td>Ours, at full ticket value</td>
+            <td>Ours, at full ticket value</td>
+          </tr>
+          <tr>
+            <th scope="row">One checkout across several venues</th>
+            <td>Not possible</td>
+            <td>Not possible</td>
+            <td>Possible</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Our recommendation: direct charges</h3>
+    <p>
+      Three reasons, in order of weight.
+    </p>
+    <p>
+      <strong>The liability belongs where the service is.</strong> If a show is cancelled
+      or a buyer disputes a charge, the business that was going to provide the
+      evening is the one holding the money and the one able to resolve it. Routing
+      it any other way asks a two-person software company to guarantee your events,
+      which is neither fair to us nor reassuring to you.
+    </p>
+    <p>
+      <strong>Your books stay clean.</strong> Your ticket revenue is reported on your own
+      Stripe account and your own tax forms. Under the other models, every dollar
+      of your ticket sales lands on our books first and then moves to you, which
+      makes both sides' accounting messier than it needs to be.
+    </p>
+    <p>
+      <strong>You get paid on Stripe's normal schedule</strong>, from your own balance,
+      without waiting on us to pass it along.
+    </p>
+
+    <div class="callout">
+      <span class="label">The trade-off we are accepting</span>
+      <p>
+        Direct charges cannot combine several venues into one checkout. A buyer
+        visiting three venues in one night pays three times rather than once.
+      </p>
+      <p>
+        For October this costs us nothing — every event is sold individually
+        anyway. It matters later, when we build the "one wallet for the whole
+        night" experience. We would rather solve that problem when we get to it
+        than take on your chargeback risk today in exchange for a feature we have
+        not built.
+      </p>
+    </div>
+
+    <div class="callout flag">
+      <span class="label">Stated plainly, so nobody is surprised</span>
+      <p>
+        Under this model a chargeback on your event comes out of your balance.
+        A buyer can dispute a card charge for months after the event, and banks
+        frequently side with the cardholder. Two protections matter: keep your
+        statement descriptor recognisable, and keep your own records of who
+        actually walked in — the app's scan log gives you exactly that, timestamped.
+      </p>
+      <p>
+        One further caveat we want on the record rather than buried: if a venue's
+        Stripe balance goes negative and stays there, Stripe can ultimately look to
+        the platform to cover it. We are not asking you to indemnify us for that,
+        but it is a real reason for us to care that every partner's account stays
+        in good standing.
+      </p>
+    </div>
+  </div>
+
+  <div class="decision">
+    <div class="decision-head">
+      <span class="decision-num">D2</span>
+      <h2>Who absorbs the processing cost</h2>
+    </div>
+    <p>
+      Stripe charges roughly <strong>2.9% + 30¢</strong> on a standard US card. That cost
+      exists no matter which platform you use. The only question is whether it comes
+      out of your face value or is covered by the buyer's service fee.
+    </p>
+    <p>
+      Here is the same $15 ticket under the fee we currently have configured, and
+      under a fee sized so that <strong>you receive the full face value</strong>.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <caption>A $15 general admission ticket, two ways</caption>
+        <thead>
+          <tr>
+            <th scope="col">&nbsp;</th>
+            <th scope="col" class="num">As configured today</th>
+            <th scope="col" class="num">Venue nets face value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Ticket face value</th><td class="num">$15.00</td><td class="num">$15.00</td></tr>
+          <tr><th scope="row">Service fee shown to buyer</th><td class="num">$1.89</td><td class="num">$1.79</td></tr>
+          <tr class="total"><th scope="row">Buyer pays</th><td class="num">$16.89</td><td class="num">$16.79</td></tr>
+          <tr><th scope="row">Less Stripe processing</th><td class="num">−$0.79</td><td class="num">−$0.79</td></tr>
+          <tr><th scope="row">Less DTLAHappening fee</th><td class="num">−$1.89</td><td class="num">−$1.00</td></tr>
+          <tr class="total"><th scope="row">You receive</th><td class="num">$14.21</td><td class="num rec">$15.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      The right-hand column is both better for you and <em>cheaper for the buyer</em>.
+      That is not a trick — it is what happens when the fee is sized deliberately
+      instead of picked as a round-sounding percentage. The current 6% + 99¢ was a
+      placeholder in the code. We would like to replace it with a number chosen
+      against this table.
+    </p>
+    <p>
+      Our recommendation is the second column: <strong>you always net the price you
+      set</strong>. It makes your pricing decisions simple — set $15, receive $15 — and
+      it means we only make money when the fee is genuinely covering our costs plus
+      a stated margin.
+    </p>
+    <div class="callout">
+      <span class="label">Worth checking against real numbers</span>
+      <p>
+        Please bring a recent Eventbrite payout statement to the next conversation.
+        Comparing against what you actually netted per ticket last month is far more
+        useful than comparing against their published rate card.
+      </p>
+    </div>
+  </div>
+
+  <div class="decision">
+    <div class="decision-head">
+      <span class="decision-num">D3</span>
+      <h2>Refunds and cancellations</h2>
+    </div>
+    <p>
+      This has to be written down before a single ticket is sold, because the policy
+      has to be shown to the buyer at checkout. We need an answer to four questions
+      per venue, or one shared answer across all venues.
+    </p>
+    <ul>
+      <li><strong>Are tickets refundable at all,</strong> and if so, up to how many hours before doors?</li>
+      <li><strong>Is the service fee refunded</strong> along with the face value, or kept?</li>
+      <li><strong>If a venue cancels,</strong> is the refund automatic and immediate to every buyer?</li>
+      <li><strong>If the whole night is called off</strong> — weather, power, city order — who announces it, and through what channel?</li>
+    </ul>
+    <p>
+      Our recommendation, as a starting point for discussion: full refunds including
+      the service fee up to 24 hours before doors; automatic full refunds if the
+      venue cancels at any point; and we absorb our own fee in a cancellation rather
+      than profiting from an event that did not happen.
+    </p>
+    <div class="callout">
+      <span class="label">Why we want to be generous here</span>
+      <p>
+        The whole proposition to a buyer is that this app is the only place to get
+        these tickets. That only works if buying here feels at least as safe as
+        buying anywhere else. A visible, generous refund policy is cheap insurance
+        against the first bad night becoming the story people tell about us.
+      </p>
+    </div>
+  </div>
+
+  <h2>What we need from each venue</h2>
+  <p class="section-note">The critical path — please start this week</p>
+  <p>
+    Stripe is legally required to verify every business that receives money. We
+    cannot shortcut it, and neither can they. You will receive a link to a
+    Stripe-hosted form — the information goes to Stripe, not to us.
+  </p>
+  <ul class="checklist">
+    <li>Legal business name and structure (LLC, corporation, sole proprietor)</li>
+    <li>EIN, or Social Security number if you operate as a sole proprietor</li>
+    <li>Business address and phone number</li>
+    <li>A short description of what is being sold — "admission to live events"</li>
+    <li>One representative: legal name, date of birth, home address, and the last four of their SSN</li>
+    <li>Anyone owning 25% or more of the business, if it is a company</li>
+    <li>A bank account for payouts — routing and account number</li>
+    <li>A rough expected monthly volume and average ticket price</li>
+  </ul>
+  <p>
+    Most accounts verify within minutes. Some are asked for a photo of a driver's
+    licence or a business document, which adds a day or two. A small number get
+    stuck and need a real conversation with Stripe support. That last category is
+    the reason we are asking now rather than in late September.
+  </p>
+
+  <h2>When you actually get paid</h2>
+  <p>
+    Stripe's normal US schedule pays out on a rolling basis a couple of business
+    days after each charge. New accounts usually wait seven to fourteen days for
+    the first payout while the account settles.
+  </p>
+  <div class="callout flag">
+    <span class="label">The thing most people are not told</span>
+    <p>
+      Event ticketing is treated as higher risk than ordinary retail, because the
+      buyer pays now for something delivered weeks later. If the event never
+      happens, every one of those charges can come back as a dispute.
+    </p>
+    <p>
+      Because of that, Stripe may hold a reserve on a ticketing account, or delay
+      payouts until <em>after</em> the event date. This is normal and not a mark against
+      you — but it means you should not plan on ticket revenue landing in your
+      account the morning after Art Night. We will describe the business accurately
+      to Stripe during onboarding, since being upfront about selling event tickets
+      is what avoids a payout freeze at the worst possible moment.
+    </p>
+  </div>
+
+  <h2>Still open — needs a lawyer, not us</h2>
+  <p>
+    We are software people. These are the items we have deliberately not answered,
+    flagged so they do not get lost:
+  </p>
+  <ul>
+    <li>
+      <strong>All-in pricing.</strong> California law now requires mandatory fees to be
+      included in the advertised price rather than added at the end. The app already
+      shows the full price everywhere, including on the browse screen — but somebody
+      should confirm the current requirements apply to us the way we think they do.
+    </li>
+    <li>
+      <strong>Tax treatment of admissions</strong> and of the service fee itself, for both
+      the venues and the platform. A CPA question, worth asking once, early.
+    </li>
+    <li>
+      <strong>Local licensing.</strong> Whether selling admissions through a platform changes
+      anything about existing City of Los Angeles business registrations.
+    </li>
+    <li>
+      <strong>The exclusivity arrangement.</strong> "Tickets only on the app" should be in
+      writing, and should say what happens if the app has an outage on a Thursday
+      night. We would rather have that written down while everyone is friendly.
+    </li>
+  </ul>
+
+  <h2>Between now and October 1</h2>
+  <ol class="phases">
+    <li>
+      <span class="phase-when">This week</span>
+      <span class="phase-what">Confirm D1, D2 and D3. Stripe onboarding links go out; venues begin verification.</span>
+    </li>
+    <li>
+      <span class="phase-when">3 September</span>
+      <span class="phase-what">Art Night, observed. We attend as researchers, not as a launch. We want to watch how your doors actually run — including whether there is usable phone signal inside each room.</span>
+    </li>
+    <li>
+      <span class="phase-when">Mid September</span>
+      <span class="phase-what">Buying a ticket works end to end, in Stripe's test mode. Venue accounts should be verified by now.</span>
+    </li>
+    <li>
+      <span class="phase-when">Late September</span>
+      <span class="phase-what">Door scanning tested at one venue with your own staff holding the phones. First real transaction and refund, with live cards.</span>
+    </li>
+    <li>
+      <span class="phase-when">1 October</span>
+      <span class="phase-what">Live for a deliberately small number of venues. We would rather two doors run flawlessly than eight run badly.</span>
+    </li>
+  </ol>
+
+  <footer>
+    <p>
+      <strong>What we are asking for today:</strong> a yes or a counter-proposal on the three
+      decisions above, and for each venue to begin Stripe onboarding this week.
+      Everything else can move. That cannot.
+    </p>
+    <p style="margin-top:1rem">
+      Figures for Stripe's processing rate reflect the standard US online card rate
+      and will vary for international and premium cards. Nothing in this document is
+      legal, tax or accounting advice.
+    </p>
+  </footer>
+
+</div>
