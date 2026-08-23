@@ -16,6 +16,16 @@ function createPrismaClient() {
   const isLocal = /localhost|127\.0\.0\.1/.test(connectionString);
   const adapter = new PrismaPg({
     connectionString,
+    // A ticket on-sale is a thundering herd: hundreds of people tap Buy in the
+    // same few seconds, and the pool becomes the bottleneck long before the
+    // database does.
+    //
+    // The default is deliberately low because local development runs behind
+    // the `prisma dev` proxy, which caps connections around 10 and simply
+    // closes them (P1017) if you exceed it — the underlying Postgres allows
+    // 100. Raise DATABASE_POOL_MAX in production, where the ceiling is the
+    // real database or its pgBouncer, not this proxy.
+    max: Number(process.env.DATABASE_POOL_MAX ?? 10),
     ...(isLocal ? {} : { ssl: true }),
   });
 

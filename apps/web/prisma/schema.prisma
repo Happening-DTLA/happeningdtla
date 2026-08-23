@@ -215,6 +215,11 @@ model Event {
 
 /// A purchasable tier. "GA $15", "Early Bird $10", "VIP $40".
 ///
+/// NOTE ON NAMING: `quantitySold` counts inventory that is COMMITTED — both
+/// sold tickets and seats currently held by a PENDING order. One counter has
+/// half the failure modes of a separate sold/reserved pair, at the cost of a
+/// slightly inaccurate name. A hold that expires decrements it again.
+///
 /// INVARIANT: quantitySold must never exceed quantity. Enforce this in a single
 /// transaction at purchase time with a conditional update
 /// (`UPDATE ... SET quantitySold = quantitySold + n WHERE id = ? AND quantitySold + n <= quantity`)
@@ -240,8 +245,9 @@ model TicketType {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event   Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tickets Ticket[]
+  items   OrderItem[]
 
   @@index([eventId])
 }
@@ -279,17 +285,46 @@ model Order {
   stripePaymentIntentId String? @unique
   stripeChargeId        String?
 
+  /// A PENDING order holds inventory until this moment. Past it, the hold is
+  /// released and the seats go back on sale. Without an expiry, abandoned
+  /// checkouts would quietly sell out an event that still has room.
+  expiresAt DateTime?
+
   createdAt DateTime  @default(now())
   paidAt    DateTime?
   updatedAt DateTime  @updatedAt
 
-  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event   Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tickets Ticket[]
+  items   OrderItem[]
 
   @@index([userId])
   @@index([eventId])
   @@index([buyerEmail])
+  @@index([status, expiresAt])
+}
+
+/// What an order is for, recorded at hold time.
+///
+/// Exists so that a `Ticket` row can mean exactly one thing: someone paid.
+/// The alternative — creating tickets when the hold is placed and flipping
+/// them on payment — makes every scan responsible for joining to the order and
+/// checking its status, and one forgotten check admits an abandoned checkout.
+model OrderItem {
+  id           String @id @default(cuid())
+  orderId      String
+  ticketTypeId String
+
+  quantity       Int
+  /// Captured at purchase, so a later price change never rewrites history.
+  unitPriceCents Int
+
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+
+  @@unique([orderId, ticketTypeId])
+  @@index([ticketTypeId])
 }
 
 enum TicketStatus {
