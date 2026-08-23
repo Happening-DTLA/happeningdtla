@@ -68,6 +68,10 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   clone drops the style function; cards render with no background, border or
   row layout. Use `useRouter().push()` instead — identical on iOS, Android
   and web.
+- **Expo SDK is pinned to 56 on purpose.** Expo Go from the App Store lags the
+  newest SDK; installing the latest gives "Project is incompatible with this
+  version of Expo Go" on an up-to-date phone. Check
+  https://api.expo.dev/v2/versions/latest before bumping.
 - **`localhost` on a phone is the phone.** `apps/mobile/src/api.ts` derives the
   API host from Expo's `hostUri` so it works on any machine without a
   hardcoded IP.

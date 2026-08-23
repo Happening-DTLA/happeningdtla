@@ -41,6 +41,16 @@ npm run mobile
 
 Install **Expo Go** on your phone from the App Store, make sure the phone is on
 the same WiFi, and scan the QR code the command prints. No Xcode required.
+
+> **Don't bump the Expo SDK just because a newer one exists.** The project is
+> pinned to **SDK 56** because that is what the App Store build of Expo Go can
+> run. `create-expo-app` installs the newest SDK, which ran ahead of the
+> shipped client and produced "Project is incompatible with this version of
+> Expo Go" on a phone that was already fully up to date. Before upgrading,
+> check the client version for that SDK at
+> https://api.expo.dev/v2/versions/latest and confirm Expo Go has caught up.
+> This constraint disappears once we move to a development build, which we
+> need anyway for camera scanning.
 `npx expo start --web` renders the same React Native code in a browser, which
 is useful for quick checks but is not what ships.
 

@@ -21,9 +21,14 @@
     "android": {
       "package": "com.dtlahappening.app",
       "edgeToEdgeEnabled": true,
-      "permissions": ["CAMERA"]
+      "permissions": [
+        "CAMERA"
+      ]
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      "expo-status-bar"
+    ],
     "experiments": {
       "typedRoutes": true
     }
