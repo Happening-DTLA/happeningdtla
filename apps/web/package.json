@@ -16,7 +16,8 @@
     "setup": "npm run db:start && npm run db:migrate && npm run db:seed",
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
-    "test:inventory": "tsx scripts/test-inventory.ts"
+    "test:inventory": "tsx scripts/test-inventory.ts",
+    "test:checkout": "tsx scripts/test-checkout-e2e.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.8.0",

@@ -128,6 +128,53 @@ export interface ApiSearchResults {
   total: number;
 }
 
+/** What the client sends to start a purchase. Quantities only — prices are
+ *  recomputed server-side, because a client that can name its own price will
+ *  eventually be asked to. */
+export interface CheckoutRequest {
+  eventId: string;
+  lines: { ticketTypeId: string; quantity: number }[];
+  buyerEmail: string;
+  buyerName?: string;
+  buyerPhone?: string;
+}
+
+export interface CheckoutResponse {
+  orderId: string;
+  /** Passed to the Stripe payment sheet to confirm the payment. */
+  clientSecret: string;
+  publishableKey: string;
+  subtotalCents: number;
+  serviceFeeCents: number;
+  totalCents: number;
+  /** When the seat hold lapses, ISO 8601. */
+  expiresAt: string;
+  /** Set when charging a venue's connected account rather than the platform. */
+  stripeAccountId: string | null;
+}
+
+export type OrderState = "PENDING" | "PAID" | "FAILED" | "REFUNDED" | "CANCELLED";
+
+export interface ApiOrderTicket {
+  id: string;
+  code: string;
+  tierName: string;
+  holderName: string | null;
+  checkedInAt: string | null;
+}
+
+export interface ApiOrder {
+  id: string;
+  status: OrderState;
+  subtotalCents: number;
+  serviceFeeCents: number;
+  totalCents: number;
+  buyerEmail: string;
+  createdAt: string;
+  event: { slug: string; title: string; startsAt: string; venueName: string };
+  tickets: ApiOrderTicket[];
+}
+
 /** Uniform error shape so clients handle failures the same way everywhere. */
 export interface ApiError {
   error: { code: string; message: string };

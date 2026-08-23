@@ -70,9 +70,11 @@ async function main() {
       slug: "nightshade",
       contactEmail: "book@nightshade.test",
       bio: "Multi-venue operator across the Arts District and Historic Core.",
-      chargesEnabled: true,
-      payoutsEnabled: true,
-      stripeAccountId: "acct_TEST_nightshade",
+      // Onboarding started but not complete — which is the real state today,
+      // and makes checkout fall back to a platform charge in development
+      // rather than failing against a Stripe account that doesn't exist.
+      chargesEnabled: false,
+      payoutsEnabled: false,
       members: {
         create: [
           { userId: attendee.id, role: "OWNER" },
@@ -87,9 +89,8 @@ async function main() {
       slug: "gallery-row",
       contactEmail: "hello@galleryrow.test",
       bio: "Artist-run spaces along Spring and Main.",
-      chargesEnabled: true,
-      payoutsEnabled: true,
-      stripeAccountId: "acct_TEST_galleryrow",
+      chargesEnabled: false,
+      payoutsEnabled: false,
     },
   });
   const littleTokyo = await prisma.organizer.create({
