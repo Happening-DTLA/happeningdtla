@@ -43,16 +43,24 @@ Install **Expo Go** on your phone from the App Store, make sure the phone is on
 the same WiFi, and scan the QR code the command prints. No Xcode required.
 
 > **Don't bump the Expo SDK just because a newer one exists.** The project is
-> pinned to **SDK 56** because that is what the App Store build of Expo Go can
-> run. `create-expo-app` installs the newest SDK, which ran ahead of the
-> shipped client and produced "Project is incompatible with this version of
-> Expo Go" on a phone that was already fully up to date. Before upgrading,
-> check the client version for that SDK at
-> https://api.expo.dev/v2/versions/latest and confirm Expo Go has caught up.
-> This constraint disappears once we move to a development build, which we
-> need anyway for camera scanning.
-`npx expo start --web` renders the same React Native code in a browser, which
-is useful for quick checks but is not what ships.
+> pinned to **SDK 54** because that is what the App Store build of Expo Go
+> runs. `create-expo-app` installs the newest SDK (57 at the time of writing),
+> which is three versions ahead of the shipped client and produces "Project is
+> incompatible with this version of Expo Go" on a fully up-to-date phone.
+>
+> To check before upgrading, read the authoritative field — not the SDK list,
+> which shows versions Expo Go cannot run:
+>
+> ```bash
+> curl -s https://api.expo.dev/v2/versions/latest | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['expoGoSdkVersion'])"
+> ```
+>
+> Note Expo Go's Settings shows a `CFBundleVersion` build number, not an SDK
+> version, so it can't be used to work this out.
+>
+> This constraint disappears with a development build, which we need anyway for
+> camera scanning — but that requires the $99 Apple Developer Program for a
+> physical iPhone, so Expo Go is the free path for now.
 
 `npm run setup` prints a couple of **scannable ticket codes** from the seeded
 order — keep those, they're what you'll test the door scanner with.
