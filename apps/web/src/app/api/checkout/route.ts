@@ -88,6 +88,7 @@ export async function POST(request: Request) {
 
     const response: CheckoutResponse = {
       orderId: order.id,
+      accessToken: order.accessToken,
       clientSecret: intent.client_secret!,
       publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
       subtotalCents: order.subtotalCents,

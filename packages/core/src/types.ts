@@ -141,6 +141,9 @@ export interface CheckoutRequest {
 
 export interface CheckoutResponse {
   orderId: string;
+  /** Bearer secret for this order. Store it; it is how the device proves
+   *  ownership later, since guest checkout has no login to authorise against. */
+  accessToken: string;
   /** Passed to the Stripe payment sheet to confirm the payment. */
   clientSecret: string;
   publishableKey: string;

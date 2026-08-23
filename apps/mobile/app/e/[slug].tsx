@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import type { ApiTicketType } from "@dtlahappening/core";
 import { formatCents, formatDate, formatTime, formatTimeRange } from "@dtlahappening/core";
 import { api } from "@/api";
@@ -85,17 +85,15 @@ export default function EventScreen() {
       <View style={{ gap: space.md }}>
         <Label>Tickets</Label>
         {event.ticketTypes.map((tier) => (
-          <TicketTier key={tier.id} tier={tier} />
+          <TicketTier key={tier.id} tier={tier} slug={event.slug} />
         ))}
-        <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: "center", marginTop: space.sm }}>
-          Checkout isn&apos;t wired up yet — see docs/ROADMAP.md
-        </Text>
       </View>
     </ScrollView>
   );
 }
 
-function TicketTier({ tier }: { tier: ApiTicketType }) {
+function TicketTier({ tier, slug }: { tier: ApiTicketType; slug: string }) {
+  const router = useRouter();
   const free = tier.priceCents === 0;
   return (
     <View
@@ -133,6 +131,7 @@ function TicketTier({ tier }: { tier: ApiTicketType }) {
 
       <Pressable
         disabled={tier.soldOut}
+        onPress={() => router.push(`/buy/${slug}?tier=${tier.id}`)}
         accessibilityRole="button"
         style={({ pressed }) => ({
           backgroundColor: tier.soldOut ? theme.surface2 : pressed ? "#a8db55" : theme.accent,

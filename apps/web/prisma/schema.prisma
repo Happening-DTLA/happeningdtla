@@ -285,6 +285,14 @@ model Order {
   stripePaymentIntentId String? @unique
   stripeChargeId        String?
 
+  /// Bearer secret for this order, handed to the buyer at checkout.
+  ///
+  /// Guest checkout means there is no login to authorise against, but ticket
+  /// codes must not be readable by anyone who can guess an id. A cuid is
+  /// unguessable enough to be a primary key and NOT enough to be a
+  /// credential, so fetching an order requires this token as well.
+  accessToken String @unique @default(cuid())
+
   /// A PENDING order holds inventory until this moment. Past it, the hold is
   /// released and the seats go back on sale. Without an expiry, abandoned
   /// checkouts would quietly sell out an event that still has room.

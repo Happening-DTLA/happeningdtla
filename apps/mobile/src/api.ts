@@ -3,7 +3,10 @@ import type {
   ApiEvent,
   ApiNight,
   ApiError,
+  ApiOrder,
   ApiSearchResults,
+  CheckoutRequest,
+  CheckoutResponse,
   EventSearchParams,
 } from "@dtlahappening/core";
 
@@ -43,6 +46,42 @@ export class ApiRequestError extends Error {
     super(message);
     this.name = "ApiRequestError";
   }
+}
+
+async function request<T>(
+  path: string,
+  init: RequestInit & { signal?: AbortSignal } = {},
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: { Accept: "application/json", ...(init.headers ?? {}) },
+    });
+  } catch {
+    throw new ApiRequestError(
+      "Can't reach DTLAHappening. Check your connection and try again.",
+      0,
+      "network_error",
+    );
+  }
+
+  if (!response.ok) {
+    let code = "http_error";
+    let message = `Something went wrong (${response.status}).`;
+    try {
+      const body = (await response.json()) as ApiError;
+      if (body?.error) {
+        code = body.error.code;
+        message = body.error.message;
+      }
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiRequestError(message, response.status, code);
+  }
+
+  return (await response.json()) as T;
 }
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
@@ -86,6 +125,19 @@ export const api = {
 
   event: (slug: string, signal?: AbortSignal) =>
     get<ApiEvent>(`/api/events/${encodeURIComponent(slug)}`, signal),
+
+  config: (signal?: AbortSignal) =>
+    get<{ stripePublishableKey: string | null }>("/api/config", signal),
+
+  checkout: (body: CheckoutRequest) =>
+    request<CheckoutResponse>("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  order: (orderId: string, token: string, signal?: AbortSignal) =>
+    get<ApiOrder>(`/api/orders/${encodeURIComponent(orderId)}?token=${encodeURIComponent(token)}`, signal),
 
   search: (params: EventSearchParams, signal?: AbortSignal) => {
     const qs = new URLSearchParams();
