@@ -1,0 +1,431 @@
+// DTLAHappening — data model
+//
+// Domain shape, and why it differs from Eventbrite:
+//   Eventbrite models one event = one venue = one ticket.
+//   DTLA Art Night is a CRAWL: one night, many venues, people moving between them.
+//   So `Night` is a first-class container that groups Events across Venues, and
+//   `VenueCheckIn` records a person's route through that night. Retrofitting this
+//   later would mean rewriting every ticket query, so it lives here from day one.
+//
+// Money: ALWAYS integer cents. Never Float/Decimal for currency.
+// Ticket integrity: see the invariants documented on Ticket and Scan below.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// People
+// ---------------------------------------------------------------------------
+
+/// An attendee. `clerkId` is null for guest checkout — we deliberately let people
+/// buy a ticket with just an email/phone and claim the account later. Requiring
+/// signup before purchase is the single biggest conversion killer in ticketing.
+model User {
+  id          String   @id @default(cuid())
+  clerkId     String?  @unique
+  email       String   @unique
+  phone       String?  @unique
+  displayName String?
+  handle      String?  @unique
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders         Order[]
+  tickets        Ticket[]          @relation("TicketOwner")
+  memberships    OrganizerMember[]
+  scansPerformed Scan[]            @relation("ScannedBy")
+  following      Follow[]          @relation("Follower")
+  followers      Follow[]          @relation("Following")
+  interests      EventInterest[]
+  checkIns       VenueCheckIn[]
+
+  @@index([email])
+}
+
+/// A business that runs venues and events — Logan's friend and his connections.
+/// Each one is a Stripe Connect account so ticket revenue lands in THEIR bank,
+/// with the platform taking an application fee. We never hold their money.
+model Organizer {
+  id           String  @id @default(cuid())
+  name         String
+  slug         String  @unique
+  bio          String?
+  logoUrl      String?
+  contactEmail String
+  contactPhone String?
+
+  // Stripe Connect
+  stripeAccountId String? @unique
+  chargesEnabled  Boolean @default(false)
+  payoutsEnabled  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members OrganizerMember[]
+  venues  Venue[]
+  events  Event[]
+}
+
+enum OrganizerRole {
+  OWNER // full access incl. payouts
+  MANAGER // create/edit events, see sales
+  DOOR_STAFF // can ONLY scan tickets — never sees revenue
+}
+
+model OrganizerMember {
+  id          String        @id @default(cuid())
+  organizerId String
+  userId      String
+  role        OrganizerRole @default(DOOR_STAFF)
+  createdAt   DateTime      @default(now())
+
+  organizer Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizerId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Places and nights
+// ---------------------------------------------------------------------------
+
+model Venue {
+  id          String  @id @default(cuid())
+  organizerId String
+  name        String
+  slug        String  @unique
+  description String?
+  imageUrl    String?
+
+  address1     String
+  address2     String?
+  city         String  @default("Los Angeles")
+  state        String  @default("CA")
+  zip          String
+  neighborhood String? // "Arts District", "Historic Core", "Little Tokyo"
+  lat          Float?
+  lng          Float?
+
+  capacity Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizer Organizer      @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  events    Event[]
+  checkIns  VenueCheckIn[]
+
+  @@index([organizerId])
+  @@index([neighborhood])
+}
+
+/// A city-wide night that many venues participate in — the Art Night container.
+/// Recurs monthly (first Thursday). A person's ticket wallet and passport are
+/// scoped to one of these.
+model Night {
+  id           String   @id @default(cuid())
+  name         String // "Art Night DTLA — October 2026"
+  slug         String   @unique // "art-night-2026-10"
+  date         DateTime @db.Date
+  description  String?
+  heroImageUrl String?
+  isPublished  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events   Event[]
+  checkIns VenueCheckIn[]
+
+  @@index([date])
+}
+
+// ---------------------------------------------------------------------------
+// Events and ticketing
+// ---------------------------------------------------------------------------
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+}
+
+model Event {
+  id          String  @id @default(cuid())
+  organizerId String
+  venueId     String
+  /// Null for a standalone event; set when it's part of a city-wide Night.
+  nightId     String?
+
+  title       String
+  slug        String  @unique
+  description String?
+  imageUrl    String?
+
+  doorsAt  DateTime?
+  startsAt DateTime
+  endsAt   DateTime?
+
+  status         EventStatus @default(DRAFT)
+  minAge         Int? // 21 for bar venues
+  isFree         Boolean     @default(false)
+  /// Denormalized for cheap list rendering — the lowest active ticket price.
+  fromPriceCents Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizer   Organizer       @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  venue       Venue           @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  night       Night?          @relation(fields: [nightId], references: [id], onDelete: SetNull)
+  ticketTypes TicketType[]
+  orders      Order[]
+  tickets     Ticket[]
+  interests   EventInterest[]
+
+  @@index([nightId])
+  @@index([venueId])
+  @@index([startsAt])
+  @@index([status, startsAt])
+}
+
+/// A purchasable tier. "GA $15", "Early Bird $10", "VIP $40".
+///
+/// INVARIANT: quantitySold must never exceed quantity. Enforce this in a single
+/// transaction at purchase time with a conditional update
+/// (`UPDATE ... SET quantitySold = quantitySold + n WHERE id = ? AND quantitySold + n <= quantity`)
+/// and treat a 0-row result as sold out. Do NOT read-then-write — two people
+/// tapping Buy at the same instant WILL oversell you, and at a door that means
+/// turning away someone holding a valid ticket.
+model TicketType {
+  id          String  @id @default(cuid())
+  eventId     String
+  name        String
+  description String?
+
+  priceCents   Int
+  quantity     Int
+  quantitySold Int @default(0)
+  maxPerOrder  Int @default(8)
+
+  salesStartAt DateTime?
+  salesEndAt   DateTime?
+  isActive     Boolean   @default(true)
+  sortOrder    Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@index([eventId])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+/// One purchase. Buyer contact is denormalized because guest checkout means
+/// there may be no durable User record to join to when we email the tickets.
+///
+/// Pricing is stored broken out so we can display ALL-IN pricing up front.
+/// California requires the total (including fees) to be shown before checkout,
+/// and burying fees at the last step is the #1 complaint about Eventbrite anyway.
+model Order {
+  id      String  @id @default(cuid())
+  userId  String?
+  eventId String
+
+  status OrderStatus @default(PENDING)
+
+  subtotalCents    Int // sum of ticket face values
+  serviceFeeCents  Int @default(0) // visible fee the buyer pays on top
+  totalCents       Int // what the card is actually charged
+  platformFeeCents Int @default(0) // what DTLAHappening keeps (Stripe application fee)
+
+  buyerName  String?
+  buyerEmail String
+  buyerPhone String?
+
+  stripePaymentIntentId String? @unique
+  stripeChargeId        String?
+
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+  updatedAt DateTime  @updatedAt
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([buyerEmail])
+}
+
+enum TicketStatus {
+  VALID
+  REFUNDED
+  VOID
+}
+
+/// A single admission.
+///
+/// INVARIANTS:
+///  1. `code` is what the QR encodes. It MUST be unguessable — random, never
+///     sequential — or people will mint their own tickets.
+///  2. `checkedInAt` is the authoritative admission record and is set exactly
+///     once, via a conditional update (`WHERE id = ? AND checkedInAt IS NULL`).
+///     A zero-row result means "already used" — that's how a screenshot passed
+///     around a group chat gets caught at the door.
+///  3. Every scan attempt (success, duplicate, or invalid) is logged to Scan.
+///     When someone argues with the door, the log is what settles it.
+model Ticket {
+  id           String @id @default(cuid())
+  orderId      String
+  ticketTypeId String
+  /// Denormalized so the door scanner resolves a code in ONE indexed lookup.
+  eventId      String
+
+  code   String       @unique
+  status TicketStatus @default(VALID)
+
+  holderName  String?
+  holderEmail String?
+  /// Nullable and separate from the order's buyer so tickets can be transferred.
+  ownerUserId String?
+
+  unitPriceCents Int
+
+  checkedInAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketType TicketType @relation(fields: [ticketTypeId], references: [id])
+  event      Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  owner      User?      @relation("TicketOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  scans      Scan[]
+
+  @@index([orderId])
+  @@index([eventId, status])
+  @@index([ownerUserId])
+}
+
+enum ScanResult {
+  ADMITTED
+  DUPLICATE // already checked in — show when and where
+  INVALID_CODE
+  WRONG_EVENT
+  REFUNDED_TICKET
+  NOT_YET_VALID
+}
+
+/// Append-only audit log of every scan attempt at every door.
+model Scan {
+  id       String  @id @default(cuid())
+  ticketId String?
+  /// Raw scanned string, kept even when it matches no ticket, so we can debug
+  /// "the scanner didn't work" reports after the fact.
+  rawCode  String
+
+  result            ScanResult
+  scannedByUserId   String?
+  venueId           String?
+  deviceId          String? // which door/phone, for reconciling gate counts
+  scannedAt         DateTime   @default(now())
+  /// True when the scan was captured offline and synced later.
+  syncedFromOffline Boolean    @default(false)
+
+  ticket    Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  scannedBy User?   @relation("ScannedBy", fields: [scannedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([scannedAt])
+}
+
+/// Stripe delivers webhooks AT LEAST once, and will retry on any non-2xx.
+/// Without this dedupe table a retry issues a second set of tickets for one
+/// payment. Insert the event id here inside the same transaction that fulfills
+/// the order; a unique violation means "already handled, ack and move on."
+model WebhookEvent {
+  id            String   @id @default(cuid())
+  stripeEventId String   @unique
+  type          String
+  processedAt   DateTime @default(now())
+  payload       Json?
+}
+
+// ---------------------------------------------------------------------------
+// Social / the crawl
+// ---------------------------------------------------------------------------
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+enum InterestLevel {
+  INTERESTED
+  GOING
+}
+
+/// Lightweight RSVP — lets someone signal intent for a free or sold-out event
+/// without a transaction, and gives us demand data before tickets go on sale.
+model EventInterest {
+  id        String        @id @default(cuid())
+  userId    String
+  eventId   String
+  level     InterestLevel @default(INTERESTED)
+  createdAt DateTime      @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+}
+
+/// The passport. One row each time someone arrives at a venue during a Night —
+/// this is the raw material for the route map, "3 of 8 stops", and seeing where
+/// friends are. Distinct from Scan: a check-in is social and can happen at a
+/// free venue with no ticket at all.
+model VenueCheckIn {
+  id      String  @id @default(cuid())
+  userId  String
+  venueId String
+  nightId String?
+
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  venue Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  night Night? @relation(fields: [nightId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, venueId, nightId])
+  @@index([nightId])
+  @@index([venueId])
+}
