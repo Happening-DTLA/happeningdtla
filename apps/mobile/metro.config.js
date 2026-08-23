@@ -20,8 +20,18 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, "node_modules"),
 ];
 
-// Without this, a package hoisted to the root can be loaded twice — which for
-// React shows up as the "invalid hook call" error rather than anything useful.
-config.resolver.disableHierarchicalLookup = true;
+// NOTE: deliberately NOT setting `disableHierarchicalLookup`.
+//
+// It's the usual monorepo recommendation — it stops a package being loaded
+// twice, which for React surfaces as "invalid hook call". But it also stops
+// Metro walking up from a package to its OWN nested node_modules, and npm
+// nests plenty here: expo's dependencies (expo-asset, expo-font, ...) live in
+// node_modules/expo/node_modules/ rather than hoisted, because mobile and web
+// need different React versions. With it on, the bundle dies at
+// "Unable to resolve module expo-asset".
+//
+// The duplicate-React risk it guards against doesn't apply: mobile resolves
+// React from the workspace root (19.1.0) and the web app keeps its own nested
+// copy (19.2.x), so only one React is reachable from here.
 
 module.exports = config;
