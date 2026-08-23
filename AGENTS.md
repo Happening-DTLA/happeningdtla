@@ -37,6 +37,41 @@ Two kinds, formatted differently — see `src/lib/datetime.ts`. `Event.startsAt`
 is an instant (Pacific). `Night.date` is a Postgres `date` (format in **UTC**,
 or the first Thursday renders as a Wednesday). Always use the helpers.
 
+## Repo layout
+
+Monorepo, npm workspaces:
+- `apps/web` — Next.js. The backend, the public event pages, the organizer
+  dashboard. Owns the database and every secret.
+- `apps/mobile` — Expo / React Native. The App Store client.
+- `packages/core` — shared pure TypeScript: API contract types, money math,
+  date formatting, ticket-code helpers. Must stay free of Node and DOM APIs —
+  it runs inside Hermes on a phone. Never put database access or secrets here.
+
+Server components call `apps/web/src/lib/queries.ts` directly. Route handlers
+wrap the same functions. Neither fetches over HTTP from itself.
+
+## API boundary
+
+Route handlers are PUBLIC. Everything crossing that boundary goes through
+`apps/web/src/lib/dto.ts`, which picks every field by hand. Never spread a
+Prisma object into a response — the day a column holds a payout account, a
+spread publishes it and nothing fails a test. `queries.ts` also selects
+organizer fields explicitly so `stripeAccountId` is never even fetched.
+
+## Framework gotchas found the hard way
+
+- **Middleware is `proxy.ts` in Next 16**, not `middleware.ts`. Same behavior,
+  renamed. CORS for `/api/*` lives in `apps/web/src/proxy.ts`.
+- **`generateImageMetadata` passes `id` as a Promise.** Not awaiting it gives
+  `fontSize: NaN` and a 500 at request time, not a type error.
+- **Don't use expo-router's `<Link asChild>` around a styled `Pressable`.** The
+  clone drops the style function; cards render with no background, border or
+  row layout. Use `useRouter().push()` instead — identical on iOS, Android
+  and web.
+- **`localhost` on a phone is the phone.** `apps/mobile/src/api.ts` derives the
+  API host from Expo's `hostUri` so it works on any machine without a
+  hardcoded IP.
+
 ## Local environment
 
 - Dev server runs on **port 3100** (3000 may be taken by an unrelated project).

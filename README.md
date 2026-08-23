@@ -10,18 +10,39 @@ moving between them.
 
 ---
 
-## Get running in 3 commands
+## Repo layout
+
+```
+apps/web        Next.js — API, public event pages, organizer dashboard
+apps/mobile     Expo / React Native — the App Store app
+packages/core   shared types + pure logic, imported by both
+```
+
+The web app is not a stepping stone to the native one; both ship. A ticket
+link sent by text has to open a real page, event pages need to be shareable
+and indexable, and organizers want a dashboard on a laptop.
+
+## Get running
 
 Requires Node 20.9+. No Docker, no Homebrew, no Postgres install — the local
 database is provided by `prisma dev`.
 
 ```bash
 npm install
-npm run setup      # starts local Postgres, migrates, seeds
-npm run dev
+npm run setup      # local Postgres, migrate, seed
+npm run web        # http://localhost:3100
 ```
 
-Then open http://localhost:3100.
+For the native app, in a second terminal:
+
+```bash
+npm run mobile
+```
+
+Install **Expo Go** on your phone from the App Store, make sure the phone is on
+the same WiFi, and scan the QR code the command prints. No Xcode required.
+`npx expo start --web` renders the same React Native code in a browser, which
+is useful for quick checks but is not what ships.
 
 `npm run setup` prints a couple of **scannable ticket codes** from the seeded
 order — keep those, they're what you'll test the door scanner with.
@@ -30,7 +51,8 @@ order — keep those, they're what you'll test the door scanner with.
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Dev server on :3100 |
+| `npm run web` | Next.js dev server on :3100 |
+| `npm run mobile` | Expo dev server — scan with Expo Go |
 | `npm run db:start` | Boot local Postgres, write `DATABASE_URL` into `.env` |
 | `npm run db:stop` | Shut the local database down |
 | `npm run db:migrate` | Create + apply a migration after editing the schema |
@@ -41,9 +63,9 @@ order — keep those, they're what you'll test the door scanner with.
 
 ## Stack
 
-- **Next.js 16** (App Router, Turbopack) — mobile-first PWA, not a native app.
-  A ticket has to be one tap from a QR code on a flyer; an App Store install is
-  a wall between a person on a sidewalk and their money.
+- **Next.js 16** (App Router, Turbopack) — backend, public event pages,
+  organizer dashboard. Also installable as a PWA.
+- **Expo / React Native** — the App Store and Play Store client.
 - **Prisma 7** + Postgres. Note Prisma 7 requires a driver adapter — there is no
   `url` in `schema.prisma`; it lives in `prisma.config.ts`.
 - **Tailwind v4**, dark-first. This app is used outdoors at night, one-handed.

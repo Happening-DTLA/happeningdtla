@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "DTLAHappening",
+    "slug": "dtlahappening",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "dtlahappening",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0a0a0c",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.dtlahappening.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scanning ticket QR codes at venue doors."
+      }
+    },
+    "android": {
+      "package": "com.dtlahappening.app",
+      "edgeToEdgeEnabled": true,
+      "permissions": ["CAMERA"]
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

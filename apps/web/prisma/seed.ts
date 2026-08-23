@@ -9,7 +9,7 @@ import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { newTicketCode } from "../src/lib/ticket-code";
-import { priceBreakdown } from "../src/lib/money";
+import { priceBreakdown } from "@dtlahappening/core";
 
 const connectionString = process.env.DATABASE_URL!;
 

@@ -20,11 +20,24 @@ has to submit an EIN, a bank account and an ID, and approval takes days per
 account and can bounce back for corrections. Start that in week one, in
 parallel with everything else, or it becomes the thing that misses the date.
 
-### Now → 29 Aug — unblock the money
-- [ ] Stripe account created; Connect enabled in **test mode**
-- [ ] Decide merchant of record (see Open questions) and write it down
+### Now → 29 Aug — unblock the two things with queues
+
+Both of these are waiting-on-someone-else items. Neither is code, and both
+become the thing that misses the date if started in September.
+
+- [ ] **Stripe**: account created, Connect enabled in test mode, onboarding
+      links sent to the first 1–3 venues. Verification takes days per account.
+- [ ] **Apple Developer Program**, as an organization. This needs a D-U-N-S
+      number for the legal entity — free from Dun & Bradstreet, commonly about
+      a week, sometimes several. $99/yr once approved. Enrolling as an
+      individual is faster but puts a personal name on the App Store listing
+      as the seller, which is wrong for a business with partners.
+- [ ] **Google Play Console**, $25 one-time. Note that personal developer
+      accounts require a 14-day closed test with 12 testers before production;
+      organization accounts are exempt, which is another reason to register as
+      the company.
+- [ ] Decide merchant of record and write it down — see docs/payments-brief.html
 - [ ] Refund policy written before a single ticket is sold
-- [ ] Send Connect onboarding links to the first 1–3 venues
 - [ ] Checkout skeleton: PaymentIntent → webhook → tickets issued
 
 ### 3 Sep — Art Night, as field research
@@ -65,6 +78,34 @@ That last one decides how much the passport/crawl feature is worth.
 
 ### 28 Sep → 1 Oct — launch
 Freeze features. Fix only what breaks.
+
+## The native track
+
+The app ships to the App Store and Play Store. `apps/mobile` is a real Expo /
+React Native app, not a webview wrapper — that distinction is what keeps us out
+of an App Review Guideline 4.2 rejection for "minimum functionality".
+
+The capabilities that make it unambiguously an app rather than a repackaged
+website, in the order they earn their keep:
+
+- **Camera QR scanning at the door.** Native camera access, and it works with
+  no signal.
+- **Offline tickets.** A ticket stored on the device renders in a basement with
+  no bars. This is the single most defensible native feature we have.
+- **Push notifications.** Doors opening, an event about to sell out, a night
+  starting. Genuine re-engagement, not a nicety.
+- **Apple Wallet passes.** A ticket that lives in Wallet is a strong signal of
+  real platform integration.
+- **Location.** What's happening within a few blocks of where you're standing.
+
+Build and submission use **EAS Build**, which compiles on Expo's macOS
+machines. Xcode locally is optional — worth installing eventually for the
+simulator, but nothing is gated on it.
+
+Sequencing note: the store listing is not on the October 1 critical path.
+Ticketing and door scanning are. Submit once those are proven, with a real
+event behind us — a reviewer looking at an app with live events and working
+checkout is a much easier conversation than one looking at a demo.
 
 ## Explicitly NOT in v1
 

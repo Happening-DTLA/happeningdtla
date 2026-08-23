@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,14 +11,14 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage/
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+build/
 
 # misc
 .DS_Store
@@ -40,8 +40,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/src/generated/prisma
+**/src/generated/prisma/
 
 # ...but the template MUST be committed — it is how a new developer knows
 # which secrets to obtain.
 !.env.example
+
+# monorepo build artifacts
+*.tsbuildinfo
+
+# expo
+.expo/
+apps/mobile/.expo/
+dist/

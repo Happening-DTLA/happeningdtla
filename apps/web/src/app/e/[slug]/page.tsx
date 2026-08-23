@@ -1,8 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getEventBySlug, remaining } from "@/lib/queries";
-import { formatCents, priceBreakdown } from "@/lib/money";
-import { formatDate, formatTime, formatTimeRange } from "@/lib/datetime";
+import {
+  formatCents,
+  priceBreakdown,
+  formatDate,
+  formatTime,
+  formatTimeRange,
+} from "@dtlahappening/core";
 
 export default async function EventPage({ params }: PageProps<"/e/[slug]">) {
   const { slug } = await params;
