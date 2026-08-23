@@ -58,3 +58,69 @@ export async function getStandaloneEvents() {
 export function remaining(tt: { quantity: number; quantitySold: number }) {
   return Math.max(0, tt.quantity - tt.quantitySold);
 }
+
+/**
+ * Event search with combinable filters.
+ *
+ * Text match is a case-insensitive `contains` across title, venue and
+ * organizer. That is honest for a few hundred events; when the catalogue grows
+ * this wants a Postgres full-text index rather than a wider LIKE.
+ */
+export async function searchEvents(params: {
+  q?: string;
+  category?: string;
+  from?: Date;
+  /** Exclusive upper bound — see pacificDayRange in @dtlahappening/core. */
+  toExclusive?: Date;
+  freeOnly?: boolean;
+  take?: number;
+}) {
+  const { q, category, from, toExclusive, freeOnly, take = 50 } = params;
+
+  const where = {
+    status: "PUBLISHED" as const,
+    ...(category ? { category: category as never } : {}),
+    ...(freeOnly ? { isFree: true } : {}),
+    ...(from || toExclusive
+      ? {
+          startsAt: {
+            ...(from ? { gte: from } : {}),
+            ...(toExclusive ? { lt: toExclusive } : {}),
+          },
+        }
+      : {}),
+    ...(q
+      ? {
+          OR: [
+            { title: { contains: q, mode: "insensitive" as const } },
+            { description: { contains: q, mode: "insensitive" as const } },
+            { venue: { name: { contains: q, mode: "insensitive" as const } } },
+            { venue: { neighborhood: { contains: q, mode: "insensitive" as const } } },
+            { organizer: { name: { contains: q, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [events, total] = await Promise.all([
+    prisma.event.findMany({
+      where,
+      orderBy: { startsAt: "asc" },
+      include: eventSummaryInclude,
+      take,
+    }),
+    prisma.event.count({ where }),
+  ]);
+
+  return { events, total };
+}
+
+/** Everything published, soonest first — the browse feed. */
+export async function getUpcomingEvents(take = 50) {
+  return prisma.event.findMany({
+    where: { status: "PUBLISHED" },
+    orderBy: { startsAt: "asc" },
+    include: eventSummaryInclude,
+    take,
+  });
+}

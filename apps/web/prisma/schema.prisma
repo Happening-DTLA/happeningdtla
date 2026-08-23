@@ -153,6 +153,19 @@ model Night {
 // Events and ticketing
 // ---------------------------------------------------------------------------
 
+/// Browse categories. Kept deliberately short — a long list looks thorough and
+/// then every event lands in "Other". Add one only when a real event needs it.
+enum EventCategory {
+  ART
+  MUSIC
+  NIGHTLIFE
+  FOOD_DRINK
+  PERFORMANCE
+  MARKET
+  WORKSHOP
+  OTHER
+}
+
 enum EventStatus {
   DRAFT
   PUBLISHED
@@ -175,9 +188,10 @@ model Event {
   startsAt DateTime
   endsAt   DateTime?
 
-  status         EventStatus @default(DRAFT)
+  status         EventStatus   @default(DRAFT)
+  category       EventCategory @default(OTHER)
   minAge         Int? // 21 for bar venues
-  isFree         Boolean     @default(false)
+  isFree         Boolean       @default(false)
   /// Denormalized for cheap list rendering — the lowest active ticket price.
   fromPriceCents Int?
 
@@ -196,6 +210,7 @@ model Event {
   @@index([venueId])
   @@index([startsAt])
   @@index([status, startsAt])
+  @@index([category, startsAt])
 }
 
 /// A purchasable tier. "GA $15", "Early Bird $10", "VIP $40".

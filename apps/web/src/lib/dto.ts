@@ -77,6 +77,7 @@ export function toApiEventSummary(e: EventSummaryRow): ApiEventSummary {
     startsAt: e.startsAt.toISOString(),
     endsAt: iso(e.endsAt),
     minAge: e.minAge,
+    category: e.category,
     isFree: e.isFree,
     fromPriceCents: e.fromPriceCents,
     fromAllInCents:

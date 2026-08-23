@@ -3,65 +3,70 @@
  * One-command local database.
  *
  * `npx prisma dev` gives us a real Postgres 17 with no Docker and no Homebrew,
- * but it picks its ports dynamically, so the connection string is different on
- * every machine (and after some restarts). Hardcoding it in .env.example would
- * hand the next developer a string that doesn't work.
+ * but it picks its ports dynamically, so the connection string differs per
+ * machine and after some restarts. Hardcoding it in .env.example would hand the
+ * next developer a string that doesn't work.
  *
- * So: start the server, read back whatever URL it chose, make sure our database
- * exists, and write the result into .env. Idempotent — safe to re-run any time.
+ * IMPORTANT: `prisma dev` runs TWO servers — a main database and a separate
+ * shadow database on another port — and its TCP endpoints IGNORE the database
+ * name in the connection string, always serving `template1`. So you cannot make
+ * a shadow database by changing the path; pointing both at the same port gives
+ * you one database wearing two names, and `prisma migrate dev` then fails with
+ * P3005 ("schema is not empty") because it finds tables in its own shadow.
+ *
+ * Both real URLs are encoded in the api_key that `prisma dev ls` prints, so we
+ * decode them from there rather than guessing ports.
+ *
+ * Idempotent — safe to re-run any time.
  */
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import pg from "pg";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SERVER = "dtlahappening";
-const DB = "dtlahappening";
-const SHADOW_DB = "dtlahappening_shadow";
 
-function sh(cmd) {
-  return execSync(cmd, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-}
+const sh = (cmd) => {
+  try {
+    return execSync(cmd, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (err) {
+    return `${err.stdout ?? ""}${err.stderr ?? ""}`;
+  }
+};
+
+const stripAnsi = (s) =>
+  s.replace(/\x1b\[[0-9;]*m/g, "").replace(/\x1b\]8;;[^\x07\x1b]*(\x07|\x1b\\)/g, "");
 
 console.log("→ starting local Postgres (prisma dev)…");
-let out = "";
-try {
-  out = sh(`npx prisma dev --detach --name ${SERVER}`);
-} catch (err) {
-  out = `${err.stdout ?? ""}${err.stderr ?? ""}`;
-}
+sh(`npx prisma dev --detach --name ${SERVER}`);
 
-// Strip ANSI + terminal hyperlink escapes before matching.
-const clean = out.replace(/\x1b\[[0-9;]*m/g, "").replace(/\x1b\]8;;[^\x07\x1b]*(\x07|\x1b\\)/g, "");
-const match = clean.match(/postgres:\/\/[^\s"']+/);
-if (!match) {
-  console.error("Could not determine the dev database URL. Raw output:\n" + clean);
+// The listing prints the api_key twice: once in full inside an OSC-8 terminal
+// hyperlink, and once truncated ("eyJk...AifQ") as the visible label. Match on
+// the RAW output before stripping escapes, and keep the longest hit — stripping
+// first throws away the only complete copy.
+const rawListing = sh("npx prisma dev ls");
+const apiKey = [...rawListing.matchAll(/api_key=([A-Za-z0-9_-]+)/g)]
+  .map((m) => m[1])
+  .sort((a, b) => b.length - a.length)[0];
+
+if (!apiKey || apiKey.length < 40) {
+  console.error("Could not read the dev server listing. Raw output:\n" + stripAnsi(rawListing));
   process.exit(1);
 }
 
-const base = new URL(match[0]);
-const adminUrl = new URL(base);
-adminUrl.pathname = "/postgres";
+const padded = apiKey + "=".repeat((4 - (apiKey.length % 4)) % 4);
+const decoded = JSON.parse(Buffer.from(padded, "base64url").toString("utf8"));
 
-const client = new pg.Client({ connectionString: adminUrl.toString() });
-await client.connect();
-for (const name of [DB, SHADOW_DB]) {
-  const { rowCount } = await client.query("SELECT 1 FROM pg_database WHERE datname = $1", [name]);
-  if (rowCount === 0) {
-    // template0 avoids "source database is being accessed by other users".
-    await client.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
-    console.log(`→ created database ${name}`);
-  }
+// Strip the tuning query string; keep just the connection.
+const clean = (u) => (u ? u.split("?")[0] + "?sslmode=disable" : undefined);
+const databaseUrl = clean(decoded.databaseUrl);
+const shadowDatabaseUrl = clean(decoded.shadowDatabaseUrl);
+
+if (!databaseUrl || !shadowDatabaseUrl) {
+  console.error("Dev server did not report both a database and a shadow database URL.");
+  process.exit(1);
 }
-await client.end();
-
-const urlFor = (name) => {
-  const u = new URL(base);
-  u.pathname = `/${name}`;
-  return u.toString();
-};
 
 const envPath = join(root, ".env");
 const existing = existsSync(envPath) ? readFileSync(envPath, "utf8") : "";
@@ -72,9 +77,11 @@ const upsert = (text, key, value) => {
 };
 
 let next = existing;
-next = upsert(next, "DATABASE_URL", urlFor(DB));
-next = upsert(next, "SHADOW_DATABASE_URL", urlFor(SHADOW_DB));
+next = upsert(next, "DATABASE_URL", databaseUrl);
+next = upsert(next, "SHADOW_DATABASE_URL", shadowDatabaseUrl);
 writeFileSync(envPath, next);
 
-console.log(`→ .env updated\n   DATABASE_URL = ${urlFor(DB)}`);
+console.log(`→ .env updated`);
+console.log(`   DATABASE_URL        = ${databaseUrl}`);
+console.log(`   SHADOW_DATABASE_URL = ${shadowDatabaseUrl}`);
 console.log("\nNext:  npm run db:migrate   then   npm run db:seed");

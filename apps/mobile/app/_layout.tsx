@@ -2,6 +2,11 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { theme } from "@/theme";
 
+/**
+ * Root stack. The tab bar lives inside `(tabs)`; event detail is pushed on top
+ * of it so the tabs stay put on the way in and the back gesture works — the
+ * same shape as Eventbrite and most store apps.
+ */
 export default function RootLayout() {
   return (
     <>
@@ -15,8 +20,8 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: theme.bg },
         }}
       >
-        <Stack.Screen name="index" options={{ title: "DTLAHappening" }} />
-        <Stack.Screen name="e/[slug]" options={{ title: "" }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="e/[slug]" options={{ title: "", headerBackTitle: "Back" }} />
       </Stack>
     </>
   );

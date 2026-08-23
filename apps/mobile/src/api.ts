@@ -1,5 +1,11 @@
 import Constants from "expo-constants";
-import type { ApiEvent, ApiNight, ApiError } from "@dtlahappening/core";
+import type {
+  ApiEvent,
+  ApiNight,
+  ApiError,
+  ApiSearchResults,
+  EventSearchParams,
+} from "@dtlahappening/core";
 
 /**
  * Where the API lives.
@@ -77,6 +83,18 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
 export const api = {
   upcomingNight: (signal?: AbortSignal) =>
     get<ApiNight>("/api/nights/upcoming", signal),
+
   event: (slug: string, signal?: AbortSignal) =>
     get<ApiEvent>(`/api/events/${encodeURIComponent(slug)}`, signal),
+
+  search: (params: EventSearchParams, signal?: AbortSignal) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set("q", params.q);
+    if (params.category) qs.set("category", params.category);
+    if (params.from) qs.set("from", params.from);
+    if (params.to) qs.set("to", params.to);
+    if (params.freeOnly) qs.set("freeOnly", "true");
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return get<ApiSearchResults>(`/api/events/search${suffix}`, signal);
+  },
 };

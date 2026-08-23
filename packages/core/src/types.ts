@@ -11,6 +11,32 @@
  *  - If a field is not described here, it does not leave the server.
  */
 
+/** Browse categories. Mirrors the EventCategory enum in the Prisma schema. */
+export const EVENT_CATEGORIES = [
+  "ART",
+  "MUSIC",
+  "NIGHTLIFE",
+  "FOOD_DRINK",
+  "PERFORMANCE",
+  "MARKET",
+  "WORKSHOP",
+  "OTHER",
+] as const;
+
+export type EventCategory = (typeof EVENT_CATEGORIES)[number];
+
+/** Human labels, kept next to the values so clients can't drift apart. */
+export const CATEGORY_LABELS: Record<EventCategory, string> = {
+  ART: "Art",
+  MUSIC: "Music",
+  NIGHTLIFE: "Nightlife",
+  FOOD_DRINK: "Food & Drink",
+  PERFORMANCE: "Performance",
+  MARKET: "Markets",
+  WORKSHOP: "Workshops",
+  OTHER: "Other",
+};
+
 export interface ApiOrganizer {
   id: string;
   slug: string;
@@ -65,6 +91,7 @@ export interface ApiEventSummary {
   startsAt: string;
   endsAt: string | null;
   minAge: number | null;
+  category: EventCategory;
   isFree: boolean;
   fromPriceCents: number | null;
   /** Lowest all-in price across active tiers, for list rendering. */
@@ -84,6 +111,21 @@ export interface ApiNight extends ApiNightSummary {
   description: string | null;
   heroImageUrl: string | null;
   events: ApiEventSummary[];
+}
+
+/** Filters accepted by the search endpoint. All optional and combinable. */
+export interface EventSearchParams {
+  q?: string;
+  category?: EventCategory;
+  /** Inclusive calendar-date bounds, YYYY-MM-DD. */
+  from?: string;
+  to?: string;
+  freeOnly?: boolean;
+}
+
+export interface ApiSearchResults {
+  events: ApiEventSummary[];
+  total: number;
 }
 
 /** Uniform error shape so clients handle failures the same way everywhere. */
