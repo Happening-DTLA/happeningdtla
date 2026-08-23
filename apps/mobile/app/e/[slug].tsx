@@ -129,27 +129,49 @@ function TicketTier({ tier, slug }: { tier: ApiTicketType; slug: string }) {
         </View>
       </View>
 
-      <Pressable
-        disabled={tier.soldOut}
-        onPress={() => router.push(`/buy/${slug}?tier=${tier.id}`)}
-        accessibilityRole="button"
-        style={({ pressed }) => ({
-          backgroundColor: tier.soldOut ? theme.surface2 : pressed ? "#a8db55" : theme.accent,
-          borderRadius: 10,
-          paddingVertical: 14,
-          alignItems: "center",
-        })}
-      >
-        <Text
+      {free ? (
+        // No RSVP flow exists yet, and sending people into a paid checkout that
+        // rejects free orders would be a dead end with an error alert. Say the
+        // true thing instead: for a free gallery night you just turn up.
+        <View
           style={{
-            color: tier.soldOut ? theme.textMuted : theme.accentInk,
-            fontWeight: "700",
-            fontSize: 15,
+            backgroundColor: theme.surface2,
+            borderRadius: 10,
+            paddingVertical: 14,
+            paddingHorizontal: space.md,
+            alignItems: "center",
           }}
         >
-          {tier.soldOut ? "Sold out" : free ? "RSVP" : "Get tickets"}
-        </Text>
-      </Pressable>
+          <Text style={{ color: theme.text, fontWeight: "600", fontSize: 15 }}>
+            Just show up
+          </Text>
+          <Text style={{ color: theme.textMuted, fontSize: 12, marginTop: 2 }}>
+            Free entry — no ticket needed
+          </Text>
+        </View>
+      ) : (
+        <Pressable
+          disabled={tier.soldOut}
+          onPress={() => router.push(`/buy/${slug}?tier=${tier.id}`)}
+          accessibilityRole="button"
+          style={({ pressed }) => ({
+            backgroundColor: tier.soldOut ? theme.surface2 : pressed ? "#a8db55" : theme.accent,
+            borderRadius: 10,
+            paddingVertical: 14,
+            alignItems: "center",
+          })}
+        >
+          <Text
+            style={{
+              color: tier.soldOut ? theme.textMuted : theme.accentInk,
+              fontWeight: "700",
+              fontSize: 15,
+            }}
+          >
+            {tier.soldOut ? "Sold out" : "Get tickets"}
+          </Text>
+        </Pressable>
+      )}
 
       {!tier.soldOut && tier.remaining < 25 ? (
         <Text style={{ color: theme.textMuted, fontSize: 12, textAlign: "center" }}>
