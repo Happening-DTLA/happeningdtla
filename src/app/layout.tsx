@@ -10,6 +10,13 @@ export const metadata: Metadata = {
   title: "DTLAHappening — what's on in Downtown LA",
   description:
     "Every gallery, rooftop and warehouse opening in Downtown Los Angeles. Tickets live here and nowhere else.",
+  // Makes iOS treat a home-screen launch as an app: no Safari chrome, and the
+  // status bar blends into the dark header instead of sitting on white.
+  appleWebApp: {
+    capable: true,
+    title: "DTLA",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
