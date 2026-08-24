@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, space } from "@/theme";
 import { API_BASE_URL } from "@/api";
@@ -8,9 +9,20 @@ import { API_BASE_URL } from "@/api";
  * guest checkout means an account is optional right up until someone wants
  * their tickets on a second device.
  */
-function Row({ icon, label, hint }: { icon: keyof typeof Ionicons.glyphMap; label: string; hint?: string }) {
+function Row({
+  icon,
+  label,
+  hint,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  hint?: string;
+  onPress?: () => void;
+}) {
   return (
     <Pressable
+      onPress={onPress}
       accessibilityRole="button"
       style={({ pressed }) => ({
         backgroundColor: pressed ? theme.surface2 : theme.surface,
@@ -34,6 +46,7 @@ function Row({ icon, label, hint }: { icon: keyof typeof Ionicons.glyphMap; labe
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
@@ -63,6 +76,14 @@ export default function ProfileScreen() {
         <Row icon="receipt-outline" label="Order history" hint="Coming soon" />
         <Row icon="notifications-outline" label="Notifications" hint="Coming soon" />
         <Row icon="business-outline" label="For organizers" hint="Manage your venue's events" />
+        {/* Staff-only. Reaching this screen grants nothing on its own — the
+            device still has to be paired with a code from an organizer. */}
+        <Row
+          icon="scan-outline"
+          label="Door scanner"
+          hint="Venue staff — needs a pairing code"
+          onPress={() => router.push("/door/scan")}
+        />
       </View>
 
       <View style={{ gap: 4, paddingTop: space.md }}>

@@ -178,6 +178,43 @@ export interface ApiOrder {
   tickets: ApiOrderTicket[];
 }
 
+// ---- Door -----------------------------------------------------------------
+
+export const SCAN_RESULTS = [
+  "ADMITTED",
+  "DUPLICATE",
+  "INVALID_CODE",
+  "WRONG_EVENT",
+  "REFUNDED_TICKET",
+  "NOT_YET_VALID",
+] as const;
+
+export type ScanResultCode = (typeof SCAN_RESULTS)[number];
+
+export interface ApiDoorPairing {
+  token: string;
+  expiresAt: string;
+  event: { id: string; title: string; venueName: string; startsAt: string };
+}
+
+export interface ApiScanResponse {
+  result: ScanResultCode;
+  /** Short enough to read at a glance in a dark doorway. */
+  message: string;
+  ticket?: {
+    code: string;
+    tierName: string;
+    holderName: string | null;
+    checkedInAt: string;
+  };
+  firstScannedAt?: string;
+}
+
+export interface ApiDoorStats {
+  event: { id: string; title: string; venueName: string };
+  stats: { sold: number; admitted: number; remaining: number };
+}
+
 /** Uniform error shape so clients handle failures the same way everywhere. */
 export interface ApiError {
   error: { code: string; message: string };

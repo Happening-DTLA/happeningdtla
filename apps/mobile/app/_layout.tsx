@@ -44,6 +44,10 @@ export default function RootLayout() {
           name="buy/[slug]"
           options={{ title: "Checkout", presentation: "modal", headerBackTitle: "Back" }}
         />
+        <Stack.Screen name="door/pair" options={{ title: "Door access" }} />
+        {/* Full screen: a scanner competing with a nav bar wastes the only
+            thing a door person is looking at. */}
+        <Stack.Screen name="door/scan" options={{ headerShown: false }} />
       </Stack>
     </StripeProvider>
   );

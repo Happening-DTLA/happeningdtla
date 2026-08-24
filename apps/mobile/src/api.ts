@@ -5,6 +5,9 @@ import type {
   ApiError,
   ApiOrder,
   ApiSearchResults,
+  ApiDoorPairing,
+  ApiDoorStats,
+  ApiScanResponse,
   CheckoutRequest,
   CheckoutResponse,
   EventSearchParams,
@@ -138,6 +141,28 @@ export const api = {
 
   order: (orderId: string, token: string, signal?: AbortSignal) =>
     get<ApiOrder>(`/api/orders/${encodeURIComponent(orderId)}?token=${encodeURIComponent(token)}`, signal),
+
+  door: {
+    pair: (pairingCode: string, deviceLabel?: string) =>
+      request<ApiDoorPairing>("/api/door/pair", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pairingCode, deviceLabel }),
+      }),
+
+    scan: (token: string, code: string) =>
+      request<ApiScanResponse>("/api/door/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code }),
+      }),
+
+    stats: (token: string, signal?: AbortSignal) =>
+      request<ApiDoorStats>("/api/door/stats", {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      }),
+  },
 
   search: (params: EventSearchParams, signal?: AbortSignal) => {
     const qs = new URLSearchParams();
