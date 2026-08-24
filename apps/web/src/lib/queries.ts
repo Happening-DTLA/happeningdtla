@@ -33,6 +33,20 @@ export async function getUpcomingNight() {
   });
 }
 
+/** One city-wide night and every published event inside it. */
+export async function getNightBySlug(slug: string) {
+  return prisma.night.findUnique({
+    where: { slug },
+    include: {
+      events: {
+        where: { status: "PUBLISHED" },
+        orderBy: [{ startsAt: "asc" }],
+        include: eventSummaryInclude,
+      },
+    },
+  });
+}
+
 export async function getEventBySlug(slug: string) {
   return prisma.event.findUnique({
     where: { slug },

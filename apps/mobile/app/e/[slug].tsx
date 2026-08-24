@@ -2,7 +2,13 @@ import { useCallback, useEffect } from "react";
 import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { ApiTicketType } from "@dtlahappening/core";
-import { formatCents, formatDate, formatTime, formatTimeRange } from "@dtlahappening/core";
+import {
+  formatCents,
+  formatDate,
+  formatTime,
+  formatTimeRange,
+  shortNightName,
+} from "@dtlahappening/core";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
 import { theme, space } from "@/theme";
@@ -14,6 +20,7 @@ export default function EventScreen() {
   const fetcher = useCallback((signal: AbortSignal) => api.event(slug, signal), [slug]);
   const { status, data: event, error, retry } = useAsync(fetcher, [slug]);
   const { refreshSnapshot } = useLikes();
+  const router = useRouter();
 
   // This screen holds the freshest copy of an event, so it is where a saved
   // snapshot gets brought up to date — no extra request, and a saved list
@@ -44,9 +51,15 @@ export default function EventScreen() {
     >
       <View style={{ gap: space.sm }}>
         {event.night ? (
-          <Text style={{ color: theme.accent, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase" }}>
-            Part of {event.night.name.split("—")[0].trim()}
-          </Text>
+          <Pressable
+            onPress={() => router.push(`/n/${event.night!.slug}`)}
+            accessibilityRole="button"
+            hitSlop={6}
+          >
+            <Text style={{ color: theme.accent, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase" }}>
+              Part of {shortNightName(event.night.name)} ›
+            </Text>
+          </Pressable>
         ) : null}
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space.md }}>
           <Text

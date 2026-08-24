@@ -58,6 +58,17 @@ export interface ApiVenue {
   lng: number | null;
 }
 
+/**
+ * A night's name without its month suffix.
+ *
+ * Nights are stored as "Art Night DTLA — October 2026" so an organizer picking
+ * one from a list is never guessing which month. Every surface that shows the
+ * name also shows the date directly beneath it, so repeating the month there
+ * reads as a stutter. Kept here rather than inlined at each call site because
+ * three screens already split this string by hand.
+ */
+export const shortNightName = (name: string) => name.split("—")[0].trim();
+
 export interface ApiNightSummary {
   id: string;
   slug: string;

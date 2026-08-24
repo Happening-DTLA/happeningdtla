@@ -20,6 +20,7 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="e/[slug]" options={{ title: "", headerBackTitle: "Back" }} />
+          <Stack.Screen name="n/[slug]" options={{ title: "", headerBackTitle: "Back" }} />
           {/* Presented as a sheet so the event stays visible behind it — buying
               feels like a step, not a departure. */}
           <Stack.Screen

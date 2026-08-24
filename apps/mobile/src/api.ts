@@ -127,6 +127,9 @@ export const api = {
   upcomingNight: (signal?: AbortSignal) =>
     get<ApiNight>("/api/nights/upcoming", signal),
 
+  night: (slug: string, signal?: AbortSignal) =>
+    get<ApiNight>(`/api/nights/${encodeURIComponent(slug)}`, signal),
+
   event: (slug: string, signal?: AbortSignal) =>
     get<ApiEvent>(`/api/events/${encodeURIComponent(slug)}`, signal),
 

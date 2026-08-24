@@ -1,8 +1,15 @@
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import type { ApiEventSummary, EventCategory } from "@dtlahappening/core";
-import { CATEGORY_LABELS, formatCents, formatDate, formatTimeRange } from "@dtlahappening/core";
+import type { ApiEventSummary, ApiNight, EventCategory } from "@dtlahappening/core";
+import {
+  CATEGORY_LABELS,
+  formatCalendarDate,
+  formatCents,
+  formatDate,
+  formatTimeRange,
+  shortNightName,
+} from "@dtlahappening/core";
 import { theme, space } from "./theme";
 import { useLikes } from "./likes-store";
 
@@ -119,6 +126,92 @@ export function CategoryChips({
         />
       ))}
     </ScrollView>
+  );
+}
+
+/**
+ * The city-wide night, presented as one destination.
+ *
+ * Art Night is a crawl — a dozen events across half a dozen venues in a single
+ * evening. Listed flat among everything else it reads as a dozen unrelated
+ * shows, which is exactly the model Eventbrite is stuck with and the thing
+ * this product exists to do better. One card, one night, one way in.
+ *
+ * The eyebrow says "city-wide night" rather than "first Thursday": the cadence
+ * is a convention, not a guarantee, and a night moved for a holiday would make
+ * the label a lie. The date underneath is the authority.
+ */
+export function NightCard({ night }: { night: ApiNight }) {
+  const router = useRouter();
+  const venueCount = new Set(night.events.map((e) => e.venue.id)).size;
+  const neighborhoods = [
+    ...new Set(
+      night.events
+        .map((e) => e.venue.neighborhood)
+        .filter((n): n is string => Boolean(n)),
+    ),
+  ];
+
+  return (
+    <Pressable
+      onPress={() => router.push(`/n/${night.slug}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`${shortNightName(night.name)}, ${night.events.length} events across ${venueCount} venues`}
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? theme.surface2 : theme.surface,
+        borderColor: theme.accent,
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: space.xl,
+        gap: space.sm,
+      })}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+        <View
+          style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accent }}
+        />
+        <Text
+          style={{
+            color: theme.accent,
+            fontSize: 11,
+            letterSpacing: 1.6,
+            textTransform: "uppercase",
+            fontWeight: "700",
+          }}
+        >
+          City-wide night
+        </Text>
+      </View>
+
+      <Text style={{ color: theme.text, fontSize: 30, fontWeight: "700", lineHeight: 34 }}>
+        {shortNightName(night.name)}
+      </Text>
+      <Text style={{ color: theme.text, fontSize: 16, fontWeight: "500" }}>
+        {formatCalendarDate(night.date)}
+      </Text>
+
+      {night.events.length > 0 ? (
+        <Text style={{ color: theme.textMuted, fontSize: 14 }}>
+          {night.events.length} {night.events.length === 1 ? "event" : "events"} across{" "}
+          {venueCount} {venueCount === 1 ? "venue" : "venues"}
+        </Text>
+      ) : null}
+
+      {neighborhoods.length > 0 ? (
+        <Text style={{ color: theme.textMuted, fontSize: 13 }} numberOfLines={1}>
+          {neighborhoods.join(" · ")}
+        </Text>
+      ) : null}
+
+      <View
+        style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: space.xs }}
+      >
+        <Text style={{ color: theme.accent, fontSize: 14, fontWeight: "600" }}>
+          See the whole night
+        </Text>
+        <Ionicons name="arrow-forward" size={15} color={theme.accent} />
+      </View>
+    </Pressable>
   );
 }
 

@@ -1,16 +1,29 @@
 import { useCallback, useMemo, useState } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
-import type { ApiEventSummary, EventCategory } from "@dtlahappening/core";
-import { EVENT_CATEGORIES, formatCalendarDate } from "@dtlahappening/core";
+import { RefreshControl, ScrollView, View } from "react-native";
+import type { EventCategory } from "@dtlahappening/core";
+import { EVENT_CATEGORIES } from "@dtlahappening/core";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
 import { theme, space } from "@/theme";
-import { CategoryChips, EmptyState, ErrorState, EventCard, Label, Loading } from "@/components";
+import {
+  CategoryChips,
+  EmptyState,
+  ErrorState,
+  EventCard,
+  Label,
+  Loading,
+  NightCard,
+} from "@/components";
 
 /**
  * Explore. The city-wide night leads, because "what's happening" is the
  * question people actually open this app with — a search box would make them
  * do the work of already knowing.
+ *
+ * The night is one card rather than its dozen events laid out flat. Art Night
+ * is a crawl and belongs on screen as a single thing you decide to attend;
+ * `n/[slug]` is where its events live. Everything below the card is what is on
+ * in Downtown that is NOT part of the night.
  */
 export default function ExploreScreen() {
   const [category, setCategory] = useState<EventCategory | null>(null);
@@ -21,14 +34,7 @@ export default function ExploreScreen() {
   const upcomingFetcher = useCallback((s: AbortSignal) => api.search({}, s), []);
   const upcoming = useAsync(upcomingFetcher);
 
-  const loading = night.status === "loading" || upcoming.status === "loading";
-  const error = night.error ?? upcoming.error;
-
-  const nightEvents = useMemo(() => {
-    const events = night.data?.events ?? [];
-    return category ? events.filter((e) => e.category === category) : events;
-  }, [night.data, category]);
-
+  // Events already inside the night are not repeated below it.
   const laterEvents = useMemo(() => {
     const nightIds = new Set((night.data?.events ?? []).map((e) => e.id));
     const rest = (upcoming.data?.events ?? []).filter((e) => !nightIds.has(e.id));
@@ -40,13 +46,13 @@ export default function ExploreScreen() {
     upcoming.retry();
   };
 
-  if (loading) return <Loading />;
-  if (error) return <ErrorState message={error.message} onRetry={retry} />;
+  if (night.status === "loading" || upcoming.status === "loading") return <Loading />;
 
-  const byNeighborhood = new Map<string, ApiEventSummary[]>();
-  for (const e of nightEvents) {
-    const key = e.venue.neighborhood ?? "Downtown";
-    byNeighborhood.set(key, [...(byNeighborhood.get(key) ?? []), e]);
+  // Only the events list is load-bearing. /api/nights/upcoming 404s when no
+  // night is scheduled, and a between-nights month must not turn the whole
+  // screen into an error — it just means there is no card to show.
+  if (upcoming.status === "error") {
+    return <ErrorState message={upcoming.error.message} onRetry={retry} />;
   }
 
   return (
@@ -58,21 +64,8 @@ export default function ExploreScreen() {
       }
     >
       {night.data ? (
-        <View style={{ gap: space.sm, padding: space.lg, paddingBottom: space.md }}>
-          <Text style={{ color: theme.accent, fontSize: 11, letterSpacing: 1.6, textTransform: "uppercase" }}>
-            Next city-wide night
-          </Text>
-          <Text style={{ color: theme.text, fontSize: 32, fontWeight: "700", lineHeight: 36 }}>
-            {night.data.name.split("—")[0].trim()}
-          </Text>
-          <Text style={{ color: theme.textMuted, fontSize: 17 }}>
-            {formatCalendarDate(night.data.date)}
-          </Text>
-          {night.data.description ? (
-            <Text style={{ color: theme.textMuted, fontSize: 15, lineHeight: 22 }}>
-              {night.data.description}
-            </Text>
-          ) : null}
+        <View style={{ padding: space.lg, paddingBottom: space.sm }}>
+          <NightCard night={night.data} />
         </View>
       ) : null}
 
@@ -80,30 +73,19 @@ export default function ExploreScreen() {
         <CategoryChips categories={EVENT_CATEGORIES} selected={category} onSelect={setCategory} />
       </View>
 
-      {nightEvents.length === 0 && category ? (
+      {laterEvents.length === 0 ? (
         <EmptyState
-          title="Nothing in that category that night"
-          body="Try another category, or clear the filter to see the whole night."
+          title={category ? "Nothing else in that category" : "Nothing else on yet"}
+          body={
+            night.data
+              ? "Everything scheduled right now is part of the night above."
+              : "Check back soon — new events are added as venues confirm them."
+          }
         />
       ) : (
-        [...byNeighborhood.entries()].map(([neighborhood, events]) => (
-          <View key={neighborhood} style={{ marginTop: space.lg, paddingHorizontal: space.lg }}>
-            <View style={{ marginBottom: space.md }}>
-              <Label>{neighborhood}</Label>
-            </View>
-            <View style={{ gap: space.md }}>
-              {events.map((e) => (
-                <EventCard key={e.id} event={e} />
-              ))}
-            </View>
-          </View>
-        ))
-      )}
-
-      {laterEvents.length > 0 ? (
-        <View style={{ marginTop: space.xxl, paddingHorizontal: space.lg }}>
+        <View style={{ marginTop: space.lg, paddingHorizontal: space.lg }}>
           <View style={{ marginBottom: space.md }}>
-            <Label>Coming up in Downtown</Label>
+            <Label>{night.data ? "Also on in Downtown" : "Coming up in Downtown"}</Label>
           </View>
           <View style={{ gap: space.md }}>
             {laterEvents.map((e) => (
@@ -111,7 +93,7 @@ export default function ExploreScreen() {
             ))}
           </View>
         </View>
-      ) : null}
+      )}
     </ScrollView>
   );
 }
