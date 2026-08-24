@@ -19,14 +19,14 @@ export function ConnectButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const go = async (action: "onboard" | "dashboard") => {
+  const go = async () => {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch(`/api/organizers/connect?organizerId=${organizerId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action: "onboard" }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body?.error?.message ?? "Couldn't start onboarding.");
@@ -41,17 +41,11 @@ export function ConnectButton({
     <div className="space-y-2">
       <button
         type="button"
-        onClick={() => go(live ? "dashboard" : "onboard")}
+        onClick={go}
         disabled={busy}
         className="rounded-lg bg-accent px-4 py-2.5 font-semibold text-accent-ink disabled:opacity-60"
       >
-        {busy
-          ? "Opening Stripe…"
-          : live
-            ? "Open Stripe dashboard"
-            : connected
-              ? "Finish setting up"
-              : "Connect payouts"}
+        {busy ? "Opening Stripe…" : live ? "Update details on Stripe" : connected ? "Finish setting up" : "Connect payouts"}
       </button>
       {error ? <p className="text-sm text-danger">{error}</p> : null}
     </div>

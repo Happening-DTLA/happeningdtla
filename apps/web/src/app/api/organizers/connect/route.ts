@@ -1,11 +1,10 @@
 import { z } from "zod";
-import { connectStatus, createOnboardingLink, createDashboardLink } from "@/lib/connect";
+import { connectStatus, createOnboardingLink } from "@/lib/connect";
 import { requireOrganizer } from "@/lib/organizer-auth";
-import { prisma } from "@/lib/prisma";
 import { ok, fail, withErrorBoundary } from "@/lib/api-response";
 
 const Body = z.object({
-  action: z.enum(["onboard", "dashboard"]).default("onboard"),
+  action: z.enum(["onboard"]).default("onboard"),
 });
 
 /** Where a venue stands with payouts. */
@@ -24,15 +23,6 @@ async function handlePOST(request: Request): Promise<Response> {
   if (!parsed.success) return fail(400, "invalid_request", "Unknown action.");
 
   try {
-    if (parsed.data.action === "dashboard") {
-      const org = await prisma.organizer.findUniqueOrThrow({
-        where: { id: auth.organizerId },
-        select: { stripeAccountId: true },
-      });
-      if (!org.stripeAccountId) return fail(400, "not_connected", "Connect payouts first.");
-      return ok({ url: await createDashboardLink(org.stripeAccountId) });
-    }
-
     const link = await createOnboardingLink(auth.organizerId);
     return ok(link);
   } catch (err) {

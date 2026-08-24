@@ -4,18 +4,6 @@ import { ConnectButton } from "./connect-button";
 
 export const dynamic = "force-dynamic";
 
-/** Turns Stripe's requirement keys into something a venue owner can act on. */
-const REQUIREMENT_LABELS: Record<string, string> = {
-  "business_profile.url": "A website or social page for the venue",
-  "business_profile.mcc": "What kind of business this is",
-  "external_account": "A bank account for payouts",
-  "individual.verification.document": "A photo of your ID",
-  "company.verification.document": "A business verification document",
-  "company.tax_id": "Your EIN",
-  "individual.id_number": "Your SSN or ITIN",
-  "tos_acceptance.date": "Accepting Stripe's terms",
-};
-
 export default async function PayoutsPage() {
   const ctx = await getOrganizerContext();
   if (!ctx) return <p className="text-text-muted">Sign in to manage payouts.</p>;
@@ -32,7 +20,8 @@ export default async function PayoutsPage() {
   }
 
   const live = status?.connected && status.organizer.chargesEnabled;
-  const outstanding = status?.requirements?.currentlyDue ?? [];
+  // Accounts v2 returns readable descriptions, so these need no translation.
+  const outstanding = status?.outstanding ?? [];
 
   return (
     <div className="space-y-6">
@@ -75,8 +64,8 @@ export default async function PayoutsPage() {
 
         {outstanding.length > 0 ? (
           <ul className="mt-3 space-y-1 text-sm text-text-muted">
-            {outstanding.map((r) => (
-              <li key={r}>• {REQUIREMENT_LABELS[r] ?? r}</li>
+            {outstanding.map((r: string) => (
+              <li key={r}>• {r}</li>
             ))}
           </ul>
         ) : null}
