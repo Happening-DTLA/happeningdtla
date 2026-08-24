@@ -14,7 +14,6 @@ export default async function OrganizerHome() {
     orderBy: { startsAt: "asc" },
     include: {
       venue: { select: { name: true } },
-      _count: { select: { tickets: true } },
     },
   });
 
@@ -41,7 +40,6 @@ export default async function OrganizerHome() {
         <ul className="space-y-3">
           {events.map((event) => {
             const s = byEvent.get(event.id);
-            const admitted = event._count.tickets;
             return (
               <li key={event.id} className="rounded-xl border border-border bg-surface p-4">
                 <div className="flex items-start justify-between gap-4">
