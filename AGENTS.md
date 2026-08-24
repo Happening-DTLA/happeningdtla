@@ -73,6 +73,14 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   `data.expoGoSdkVersion` from https://api.expo.dev/v2/versions/latest — NOT the
   `sdkVersions` list, which includes versions Expo Go cannot run. Expo Go's
   Settings shows a CFBundleVersion build number, not an SDK version.
+- **`react-native-maps` and `expo-location` DO run in Expo Go on SDK 54.**
+  Verified by loading it on a device, which is the only thing that counts —
+  the entry in `bundledNativeModules.json` pins a *compatible version* and says
+  nothing about what Expo Go actually ships, which is the same trap that made
+  `@clerk/clerk-expo` fail at import. `expo-maps` is a different library and was
+  not tested. The map deliberately sets no `provider`, so iOS uses Apple Maps
+  and needs no API key; a standalone **Android** build uses Google Maps and will
+  need a key in `app.json`.
 - **`expo install --fix` can add a bogus config plugin.** It added
   `expo-status-bar` to `app.json` plugins, which is not a config plugin and
   makes the dev server refuse to start. Keep that array to `["expo-router"]`.

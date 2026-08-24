@@ -118,6 +118,11 @@ a crawl — which is exactly why it deserves to be built on top of a ticketing
 system that already works, not instead of one. The schema already carries
 `Night` and `VenueCheckIn` so this doesn't require a migration later.
 
+Live video and in-app social — going live from a venue, uploading clips, people
+talking to each other around a room — is parked in `live-and-social.md`. It
+needs accounts, the moderation stack Apple requires before it will approve a
+UGC app, and venue consent. All three have longer lead times than the code.
+
 ## Open questions — these are Logan's, not the code's
 
 1. **Merchant of record.** Recommended: the venue, via Stripe Connect
