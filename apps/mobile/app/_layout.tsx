@@ -1,31 +1,11 @@
-import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { StripeProvider } from "@stripe/stripe-react-native";
-import { api } from "@/api";
+import { PaymentProvider } from "@/PaymentProvider";
 import { theme } from "@/theme";
 
 export default function RootLayout() {
-  const [publishableKey, setPublishableKey] = useState<string | null>(null);
-
-  // Fetched rather than baked into a second .env, so there is one source of
-  // truth for the key and no chance of test/live drifting between them.
-  useEffect(() => {
-    let alive = true;
-    api
-      .config()
-      .then((c) => alive && setPublishableKey(c.stripePublishableKey))
-      .catch(() => {
-        // Browsing must still work when the API is unreachable; only paying
-        // needs Stripe, and that surfaces its own error.
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   return (
-    <StripeProvider publishableKey={publishableKey ?? ""}>
+    <PaymentProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -49,6 +29,6 @@ export default function RootLayout() {
             thing a door person is looking at. */}
         <Stack.Screen name="door/scan" options={{ headerShown: false }} />
       </Stack>
-    </StripeProvider>
+    </PaymentProvider>
   );
 }

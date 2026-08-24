@@ -16,7 +16,7 @@ export default function BuyScreen() {
 
   const [quantity, setQuantity] = useState(1);
   const [email, setEmail] = useState("");
-  const { buy, busy } = useCheckout();
+  const { buy, busy, canPayHere } = useCheckout();
 
   if (status === "loading") return <Loading />;
   if (status === "error") return <ErrorState message={error.message} onRetry={retry} />;
@@ -27,6 +27,7 @@ export default function BuyScreen() {
   const max = Math.min(tier.maxPerOrder, tier.remaining);
   const { subtotalCents, serviceFeeCents, totalCents } = priceBreakdown(tier.priceCents * quantity);
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const blocked = busy || (canPayHere && !emailValid);
 
   const Step = ({ dir, disabled }: { dir: -1 | 1; disabled: boolean }) => (
     <Pressable
@@ -129,10 +130,11 @@ export default function BuyScreen() {
         </View>
 
         <Pressable
-          disabled={!emailValid || busy}
+          disabled={blocked}
           onPress={() =>
             buy({
               eventId: event.id,
+              eventSlug: event.slug,
               ticketTypeId: tier.id,
               quantity,
               buyerEmail: email.trim(),
@@ -141,7 +143,7 @@ export default function BuyScreen() {
           }
           accessibilityRole="button"
           style={({ pressed }) => ({
-            backgroundColor: !emailValid || busy ? theme.surface2 : pressed ? "#a8db55" : theme.accent,
+            backgroundColor: blocked ? theme.surface2 : pressed ? "#a8db55" : theme.accent,
             borderRadius: 12,
             paddingVertical: 16,
             alignItems: "center",
@@ -149,14 +151,33 @@ export default function BuyScreen() {
         >
           <Text
             style={{
-              color: !emailValid || busy ? theme.textMuted : theme.accentInk,
+              color: blocked ? theme.textMuted : theme.accentInk,
               fontWeight: "700",
               fontSize: 16,
             }}
           >
-            {busy ? "Starting checkout…" : `Pay ${formatCents(totalCents)}`}
+            {busy
+              ? "Starting checkout…"
+              : canPayHere
+                ? `Pay ${formatCents(totalCents)}`
+                : "Get tickets on the web"}
           </Text>
         </Pressable>
+
+        {/* Don't let the button imply a payment this platform can't take. */}
+        {!canPayHere ? (
+          <Text
+            style={{
+              color: theme.textMuted,
+              fontSize: 12,
+              textAlign: "center",
+              marginTop: -space.md,
+            }}
+          >
+            The payment sheet is iOS and Android only. This opens the event on
+            the website.
+          </Text>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

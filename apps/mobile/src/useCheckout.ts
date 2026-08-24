@@ -6,6 +6,24 @@ import { api, ApiRequestError } from "@/api";
 import { saveOrder } from "@/orders-store";
 
 /**
+ * What a purchase needs to know.
+ *
+ * Kept in sync by hand with useCheckout.web.ts — Metro picks that file for
+ * `platform: web` and TypeScript only ever resolves this one, so nothing
+ * cross-checks the two. Same arrangement as EventMap.tsx / EventMap.web.tsx.
+ * `eventSlug` and `eventTitle` are unused here; the web variant needs them to
+ * name the event and build its URL.
+ */
+export type CheckoutArgs = {
+  eventId: string;
+  eventSlug: string;
+  ticketTypeId: string;
+  quantity: number;
+  buyerEmail: string;
+  eventTitle: string;
+};
+
+/**
  * The purchase, end to end.
  *
  * The server holds the seats and creates the PaymentIntent; this presents
@@ -19,13 +37,7 @@ export function useCheckout() {
   const router = useRouter();
 
   const buy = useCallback(
-    async (args: {
-      eventId: string;
-      ticketTypeId: string;
-      quantity: number;
-      buyerEmail: string;
-      eventTitle: string;
-    }) => {
+    async (args: CheckoutArgs) => {
       if (busy) return;
       setBusy(true);
       try {
@@ -72,5 +84,10 @@ export function useCheckout() {
     [busy, initPaymentSheet, presentPaymentSheet, router],
   );
 
-  return { buy, busy };
+  // Annotated rather than inferred: a literal `true` would narrow away the
+  // web branch in every caller, and the web variant is the whole point.
+  /** Whether this platform can take the payment itself. */
+  const canPayHere: boolean = true;
+
+  return { buy, busy, canPayHere };
 }

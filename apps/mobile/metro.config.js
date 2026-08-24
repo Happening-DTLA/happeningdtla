@@ -35,18 +35,35 @@ config.resolver.nodeModulesPaths = [
 // resolveRequest intercepts every request regardless of who is asking, which
 // is the only place that can guarantee a single instance. Pinned to the
 // version Expo expects rather than the newer root copy.
-const forceSingle = new Map();
-for (const name of ["react", "react-dom"]) {
+const FORCE_SINGLE = ["react", "react-dom"];
+
+// Subpaths count. `react/jsx-runtime` and `react-dom/client` are their own
+// resolution requests, so matching only the bare name pins the package and
+// leaks its subpaths to hierarchical lookup and the root's 19.2.x. That is
+// survivable on native — a second jsx-runtime is inert — but react-dom/client
+// compares its own version against React's and throws "Incompatible React
+// versions" before the web app renders a single frame.
+const pinnedCache = new Map();
+function pinnedPath(moduleName) {
+  const owned = FORCE_SINGLE.some(
+    (name) => moduleName === name || moduleName.startsWith(`${name}/`),
+  );
+  if (!owned) return null;
+  if (pinnedCache.has(moduleName)) return pinnedCache.get(moduleName);
+
+  let filePath = null;
   try {
-    forceSingle.set(name, require.resolve(name, { paths: [projectRoot] }));
+    filePath = require.resolve(moduleName, { paths: [projectRoot] });
   } catch {
     /* not installed locally — leave it to normal resolution */
   }
+  pinnedCache.set(moduleName, filePath);
+  return filePath;
 }
 
 const defaultResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  const pinned = forceSingle.get(moduleName);
+  const pinned = pinnedPath(moduleName);
   if (pinned) return { type: "sourceFile", filePath: pinned };
   return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
 };
