@@ -12,5 +12,6 @@ export async function GET() {
   return ok({
     // Blank means unset, not a usable key.
     stripePublishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() || null,
+    clerkPublishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim() || null,
   });
 }

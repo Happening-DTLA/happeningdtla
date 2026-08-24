@@ -33,7 +33,9 @@
           "merchantIdentifier": "merchant.com.dtlahappening.app",
           "enableGooglePay": false
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

@@ -131,7 +131,10 @@ export const api = {
     get<ApiEvent>(`/api/events/${encodeURIComponent(slug)}`, signal),
 
   config: (signal?: AbortSignal) =>
-    get<{ stripePublishableKey: string | null }>("/api/config", signal),
+    get<{ stripePublishableKey: string | null; clerkPublishableKey: string | null }>(
+      "/api/config",
+      signal,
+    ),
 
   checkout: (body: CheckoutRequest) =>
     request<CheckoutResponse>("/api/checkout", {

@@ -1,6 +1,7 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth, useUser } from "@clerk/clerk-expo";
 import { theme, space } from "@/theme";
 import { API_BASE_URL } from "@/api";
 
@@ -47,6 +48,11 @@ function Row({
 
 export default function ProfileScreen() {
   const router = useRouter();
+  // Clerk hooks are safe when the provider is absent — isLoaded stays false
+  // and the account block simply doesn't render. Accounts are optional here.
+  const { isSignedIn, signOut, isLoaded } = useAuth();
+  const { user } = useUser();
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
@@ -72,6 +78,26 @@ export default function ProfileScreen() {
       </View>
 
       <View style={{ gap: space.md }}>
+        {isLoaded && isSignedIn ? (
+          <Row
+            icon="person-circle-outline"
+            label={user?.primaryEmailAddress?.emailAddress ?? "Your account"}
+            hint="Signed in — tickets follow this account"
+            onPress={() =>
+              Alert.alert("Sign out?", "Your tickets stay on this device either way.", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Sign out", style: "destructive", onPress: () => signOut() },
+              ])
+            }
+          />
+        ) : (
+          <Row
+            icon="log-in-outline"
+            label="Sign in or create an account"
+            hint="Optional — keeps your tickets across devices"
+            onPress={() => router.push("/account/sign-in")}
+          />
+        )}
         <Row icon="bookmark-outline" label="Saved events" hint="Coming soon" />
         <Row icon="receipt-outline" label="Order history" hint="Coming soon" />
         <Row icon="notifications-outline" label="Notifications" hint="Coming soon" />
