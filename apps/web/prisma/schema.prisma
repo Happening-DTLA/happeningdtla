@@ -409,6 +409,11 @@ model DoorSession {
   token       String? @unique
   deviceLabel String?
 
+  /// Pairing and scanning only work inside this window. Defaults to a short
+  /// while before doors until the event ends, so a code leaked in advance is
+  /// inert, and a paired phone stops working once the night is over.
+  activeFrom DateTime
+
   /// Doors are a one-night affair; a token that outlives the event is a
   /// liability with no upside.
   expiresAt  DateTime

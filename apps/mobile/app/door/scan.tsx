@@ -221,7 +221,21 @@ export default function ScanScreen() {
         onBarcodeScanned={({ data }: { data: string }) => submit(data)}
       />
 
-      <View style={{ position: "absolute", top: 0, left: 0, right: 0, padding: space.lg, paddingTop: space.xxl, backgroundColor: "rgba(0,0,0,0.6)" }}>
+      <View style={{ position: "absolute", top: 0, left: 0, right: 0, padding: space.lg, paddingTop: space.xxl, backgroundColor: "rgba(0,0,0,0.6)", flexDirection: "row", alignItems: "flex-start", gap: space.md }}>
+        {/* The header is hidden so the camera gets the whole screen, which
+            left no way out except Unpair — far too destructive for "I opened
+            this by accident". Leaving does NOT unpair; the device stays
+            authorised for the night. */}
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+          accessibilityRole="button"
+          accessibilityLabel="Close scanner"
+          hitSlop={16}
+          style={{ paddingTop: 2 }}
+        >
+          <Ionicons name="chevron-back" size={26} color="#fff" />
+        </Pressable>
+        <View style={{ flex: 1 }}>
         <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }} numberOfLines={1}>
           {door.eventTitle}
         </Text>
@@ -237,6 +251,7 @@ export default function ScanScreen() {
             </Text>
           </View>
         ) : null}
+        </View>
       </View>
 
       {v && verdict ? (

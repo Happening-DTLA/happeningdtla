@@ -15,7 +15,30 @@ const newPairingCode = customAlphabet(pairingAlphabet, 6);
 /** The device's standing credential. Never spoken, so length costs nothing. */
 const newToken = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 40);
 
-export const PAIRING_CODE_TTL_MINUTES = 30;
+/** How long before doors a phone can pair. Enough for staff to set up. */
+export const PAIRING_OPENS_MINUTES_BEFORE = 30;
+/** Grace after the event ends, for stragglers and re-entry. */
+export const DOOR_CLOSES_MINUTES_AFTER = 120;
+/** Events without an end time are assumed to run this long. */
+export const ASSUMED_EVENT_HOURS = 6;
+/** Cap on live door phones per event. Generous for a real door, low enough
+ *  that a leaked admin credential can't quietly mint a hundred scanners. */
+export const MAX_DOOR_SESSIONS_PER_EVENT = 12;
+
+export class DoorWindowError extends Error {
+  constructor(message: string, readonly code: string) {
+    super(message);
+    this.name = "DoorWindowError";
+  }
+}
+
+/** The window during which a door for this event may pair and scan. */
+export function doorWindowFor(event: { startsAt: Date; endsAt: Date | null }) {
+  const activeFrom = new Date(event.startsAt.getTime() - PAIRING_OPENS_MINUTES_BEFORE * 60_000);
+  const end = event.endsAt ?? new Date(event.startsAt.getTime() + ASSUMED_EVENT_HOURS * 3_600_000);
+  const activeUntil = new Date(end.getTime() + DOOR_CLOSES_MINUTES_AFTER * 60_000);
+  return { activeFrom, activeUntil };
+}
 
 /**
  * Raised when we could not determine a ticket's status — as distinct from
@@ -82,19 +105,61 @@ export interface ScanOutcome {
   firstScannedAt?: string;
 }
 
-/** Creates an unclaimed session and returns the code to read out. */
+/**
+ * Creates an unclaimed session for an event this organizer owns.
+ *
+ * The window is derived from the event rather than from "now", so a code
+ * handed out in advance simply doesn't work until doors are near, and every
+ * paired phone goes dead after the night without anyone remembering to revoke
+ * it. Overrides exist for the real cases that break the rule — a soundcheck
+ * door, a multi-day run, and testing against future-dated events.
+ */
 export async function createDoorSession(input: {
   eventId: string;
+  organizerId: string;
   deviceLabel?: string;
-  expiresAt: Date;
+  activeFrom?: Date;
+  activeUntil?: Date;
 }) {
+  const event = await prisma.event.findUnique({
+    where: { id: input.eventId },
+    select: { id: true, organizerId: true, startsAt: true, endsAt: true, status: true },
+  });
+  if (!event) throw new DoorWindowError("No such event.", "event_not_found");
+
+  // Ownership is the point of the whole change: a business can only open doors
+  // for its own events.
+  if (event.organizerId !== input.organizerId) {
+    throw new DoorWindowError("That event belongs to another organizer.", "not_your_event");
+  }
+  if (event.status !== "PUBLISHED") {
+    throw new DoorWindowError("Only published events can open a door.", "event_not_published");
+  }
+
+  const live = await prisma.doorSession.count({
+    where: { eventId: event.id, revokedAt: null, expiresAt: { gt: new Date() } },
+  });
+  if (live >= MAX_DOOR_SESSIONS_PER_EVENT) {
+    throw new DoorWindowError(
+      `This event already has ${MAX_DOOR_SESSIONS_PER_EVENT} door phones. Revoke one first.`,
+      "too_many_doors",
+    );
+  }
+
+  const window = doorWindowFor(event);
+  const activeFrom = input.activeFrom ?? window.activeFrom;
+  const activeUntil = input.activeUntil ?? window.activeUntil;
+
   return prisma.doorSession.create({
     data: {
-      eventId: input.eventId,
+      eventId: event.id,
       pairingCode: newPairingCode(),
-      pairingCodeExpiresAt: new Date(Date.now() + PAIRING_CODE_TTL_MINUTES * 60_000),
+      // The code stays claimable for the whole window rather than expiring on
+      // a timer, because staff arrive when they arrive.
+      pairingCodeExpiresAt: activeUntil,
       deviceLabel: input.deviceLabel,
-      expiresAt: input.expiresAt,
+      activeFrom,
+      expiresAt: activeUntil,
     },
   });
 }
@@ -109,15 +174,19 @@ export async function claimDoorSession(pairingCode: string, deviceLabel?: string
   const code = pairingCode.trim().toUpperCase();
   const token = newToken();
 
+  const now = new Date();
   const claimed = await prisma.doorSession.updateMany({
     where: {
       pairingCode: code,
       claimedAt: null,
       revokedAt: null,
-      pairingCodeExpiresAt: { gt: new Date() },
-      expiresAt: { gt: new Date() },
+      // Outside the event window a valid code is inert — so one written on a
+      // whiteboard last week does nothing today.
+      activeFrom: { lte: now },
+      pairingCodeExpiresAt: { gt: now },
+      expiresAt: { gt: now },
     },
-    data: { claimedAt: new Date(), token, ...(deviceLabel ? { deviceLabel } : {}) },
+    data: { claimedAt: now, token, ...(deviceLabel ? { deviceLabel } : {}) },
   });
 
   if (claimed.count === 0) return null;
@@ -138,8 +207,10 @@ export async function authenticateDoor(token: string) {
     }),
   );
   if (!session) return null;
+  const now = new Date();
   if (session.revokedAt) return null;
-  if (session.expiresAt < new Date()) return null;
+  if (session.activeFrom > now) return null;
+  if (session.expiresAt < now) return null;
   return session;
 }
 

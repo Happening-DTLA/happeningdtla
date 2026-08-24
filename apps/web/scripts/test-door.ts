@@ -12,6 +12,16 @@ import { createPendingOrder, fulfillOrder } from "../src/lib/orders";
 
 const BASE = "http://localhost:3100";
 const ADMIN = process.env.ADMIN_API_SECRET!;
+
+/**
+ * Seeded events are in October, so the real door window has not opened. Tests
+ * pass an explicit window; production derives it from the event. Exercising
+ * the derived window is a separate check below.
+ */
+const testWindow = {
+  activeFrom: new Date(Date.now() - 60_000).toISOString(),
+  activeUntil: new Date(Date.now() + 3_600_000).toISOString(),
+};
 let failures = 0;
 const check = (label: string, ok: boolean, detail = "") => {
   console.log(`  ${ok ? "✓" : "✗"} ${label}${detail ? ` — ${detail}` : ""}`);
@@ -68,7 +78,7 @@ async function createSequentialSession() {
   });
   const tickets = await paidTicketsFor(event.id, tier.id, 1);
 
-  const created = await post("/api/door/sessions", { eventId: event.id }, ADMIN);
+  const created = await post("/api/door/sessions", { eventId: event.id, ...testWindow }, ADMIN);
   const { pairingCode } = await json(created);
   const paired = await json(await post("/api/door/pair", { pairingCode }));
 
@@ -83,12 +93,23 @@ async function createSequentialSession() {
 
 async function main() {
   const event = await prisma.event.findFirstOrThrow({ where: { status: "PUBLISHED" } });
+
+  // Each run mints several door sessions, and the per-event cap is real — so
+  // previous runs would eventually block this one. Retire them first.
+  await prisma.doorSession.updateMany({
+    where: { revokedAt: null, event: { status: "PUBLISHED" } },
+    data: { revokedAt: new Date() },
+  });
   const tier = await prisma.ticketType.create({
     data: { eventId: event.id, name: `DOOR ${Date.now()}`, priceCents: 1000, quantity: 50, maxPerOrder: 20 },
   });
 
   console.log("\n— pairing —");
-  const created = await post("/api/door/sessions", { eventId: event.id, deviceLabel: "Front door" }, ADMIN);
+  const created = await post(
+    "/api/door/sessions",
+    { eventId: event.id, deviceLabel: "Front door", ...testWindow },
+    ADMIN,
+  );
   check("organizer can mint a pairing code", created.status === 200, `HTTP ${created.status}`);
   const { pairingCode } = await json(created);
 
@@ -110,6 +131,21 @@ async function main() {
     if (r?.result && !String(r.result).startsWith("EMPTY") && !String(r.result).startsWith("UNPARSE")) scanOutcomes++;
     return r;
   };
+
+  console.log("\n— the event window —");
+  {
+    // A code minted for a future event must be inert until doors are near.
+    const early = await json(await post("/api/door/sessions", { eventId: event.id }, ADMIN));
+    check("default window comes from the event, not from now", Boolean(early.defaultWindow?.activeFrom));
+    check("a future event's code is not pairable yet", early.pairableNow === false, `pairableNow=${early.pairableNow}`);
+    const tooEarly = await post("/api/door/pair", { pairingCode: early.pairingCode });
+    check("pairing before the window is refused", tooEarly.status === 401, `HTTP ${tooEarly.status}`);
+  }
+  {
+    const other = await prisma.organizer.findFirstOrThrow({ where: { id: { not: (await prisma.event.findUniqueOrThrow({ where: { id: event.id }, select: { organizerId: true } })).organizerId } } });
+    const foreign = await post("/api/door/sessions", { eventId: event.id, organizerId: other.id, ...testWindow }, ADMIN);
+    check("another organizer cannot open your door", foreign.status === 400, `HTTP ${foreign.status}`);
+  }
 
   console.log("\n— scanning —");
   const noToken = await post("/api/door/scan", { code: "whatever" });
@@ -212,7 +248,7 @@ async function main() {
 
   console.log("\n— offline manifest and sync —");
   {
-    const created2 = await post("/api/door/sessions", { eventId: event.id }, ADMIN);
+    const created2 = await post("/api/door/sessions", { eventId: event.id, ...testWindow }, ADMIN);
     const { pairingCode: pc2 } = await json(created2);
     const paired2 = await json(await post("/api/door/pair", { pairingCode: pc2 }));
 
@@ -261,6 +297,10 @@ async function main() {
   }
 
   await prisma.ticketType.updateMany({ where: { name: { startsWith: "DOOR " } }, data: { isActive: false } });
+  await prisma.doorSession.updateMany({
+    where: { revokedAt: null, deviceLabel: { in: ["Front door", "iPhone"] } },
+    data: { revokedAt: new Date() },
+  });
   console.log(failures === 0 ? "\nDoor scanner holds up.\n" : `\n${failures} CHECK(S) FAILED\n`);
   process.exit(failures === 0 ? 0 : 1);
 }
