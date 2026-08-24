@@ -20,7 +20,11 @@ const resend = apiKey ? new Resend(apiKey) : null;
  * real buyers. Set EMAIL_FROM to an address on a verified domain before
  * selling anything.
  */
-const FROM = process.env.EMAIL_FROM ?? "DTLAHappening <onboarding@resend.dev>";
+// `??` is wrong here. A commented-out or blank env var is an EMPTY STRING,
+// not undefined, so it sails past a nullish check and the provider rejects
+// "The domain is invalid" — which reads like a config problem somewhere else
+// entirely. Treat blank as unset.
+const FROM = process.env.EMAIL_FROM?.trim() || "DTLAHappening <onboarding@resend.dev>";
 
 export interface EmailMessage {
   to: string;
@@ -55,7 +59,19 @@ export async function send(message: EmailMessage): Promise<{ sent: boolean; reas
       text: message.text,
     });
     if (error) {
-      console.error("[email] provider rejected the message", error);
+      // The most common misconfiguration by far: pointing EMAIL_FROM at an
+      // address on a domain you don't control. Gmail and the like will always
+      // be refused — sending as someone else's domain is what spam does.
+      if (/domain is not verified/i.test(error.message ?? "")) {
+        console.error(
+          `[email] ${error.message}\n` +
+            `        EMAIL_FROM is "${FROM}". Either leave EMAIL_FROM empty to use\n` +
+            `        Resend's shared sender (delivers only to your account address),\n` +
+            `        or verify a domain you own and send from that.`,
+        );
+      } else {
+        console.error("[email] provider rejected the message", error);
+      }
       return { sent: false, reason: error.message };
     }
     return { sent: true };

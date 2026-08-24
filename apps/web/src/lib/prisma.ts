@@ -26,7 +26,9 @@ function createPrismaClient() {
     // state (08P01 "bind message supplies N parameters"). The Postgres behind
     // it allows 100. Raise DATABASE_POOL_MAX in production, where the ceiling
     // is the real database or its pgBouncer rather than this proxy.
-    max: Number(process.env.DATABASE_POOL_MAX ?? 6),
+    // `||` not `??`: a blank env var is an empty string, and Number("") is 0,
+    // which would configure a pool that can never hand out a connection.
+    max: Number(process.env.DATABASE_POOL_MAX?.trim() || 6),
     ...(isLocal ? {} : { ssl: true }),
   });
 

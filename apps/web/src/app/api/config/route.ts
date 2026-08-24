@@ -10,6 +10,7 @@ import { ok } from "@/lib/api-response";
  */
 export async function GET() {
   return ok({
-    stripePublishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? null,
+    // Blank means unset, not a usable key.
+    stripePublishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() || null,
   });
 }

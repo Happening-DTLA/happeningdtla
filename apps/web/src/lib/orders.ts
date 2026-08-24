@@ -335,7 +335,8 @@ export async function sendOrderConfirmation(orderId: string): Promise<boolean> {
         totalCents: order.totalCents,
         tickets: order.tickets.map((t) => ({ code: t.code, tierName: t.ticketType.name })),
       },
-      process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3100",
+      // Blank would produce a hostless link in every ticket email.
+      process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:3100",
     );
 
     const { sent, reason } = await send(message);
