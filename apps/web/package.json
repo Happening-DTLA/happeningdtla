@@ -17,7 +17,8 @@
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "test:inventory": "tsx scripts/test-inventory.ts",
-    "test:checkout": "tsx scripts/test-checkout-e2e.ts"
+    "test:checkout": "tsx scripts/test-checkout-e2e.ts",
+    "test:door": "tsx scripts/test-door.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.8.0",

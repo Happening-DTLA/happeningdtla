@@ -21,11 +21,12 @@ function createPrismaClient() {
     // database does.
     //
     // The default is deliberately low because local development runs behind
-    // the `prisma dev` proxy, which caps connections around 10 and simply
-    // closes them (P1017) if you exceed it — the underlying Postgres allows
-    // 100. Raise DATABASE_POOL_MAX in production, where the ceiling is the
-    // real database or its pgBouncer, not this proxy.
-    max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+    // the `prisma dev` proxy, which is fragile under concurrency: past a
+    // handful of connections it closes them (P1017) and can corrupt protocol
+    // state (08P01 "bind message supplies N parameters"). The Postgres behind
+    // it allows 100. Raise DATABASE_POOL_MAX in production, where the ceiling
+    // is the real database or its pgBouncer rather than this proxy.
+    max: Number(process.env.DATABASE_POOL_MAX ?? 6),
     ...(isLocal ? {} : { ssl: true }),
   });
 

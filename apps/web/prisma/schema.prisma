@@ -198,13 +198,14 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organizer   Organizer       @relation(fields: [organizerId], references: [id], onDelete: Cascade)
-  venue       Venue           @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  night       Night?          @relation(fields: [nightId], references: [id], onDelete: SetNull)
-  ticketTypes TicketType[]
-  orders      Order[]
-  tickets     Ticket[]
-  interests   EventInterest[]
+  organizer    Organizer       @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  venue        Venue           @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  night        Night?          @relation(fields: [nightId], references: [id], onDelete: SetNull)
+  ticketTypes  TicketType[]
+  orders       Order[]
+  tickets      Ticket[]
+  interests    EventInterest[]
+  doorSessions DoorSession[]
 
   @@index([nightId])
   @@index([venueId])
@@ -385,6 +386,42 @@ model Ticket {
   @@index([ownerUserId])
 }
 
+/// A phone authorised to scan one event's door.
+///
+/// Door staff are often temporary — a friend working the door for one night.
+/// Making each of them create an account, accept an invite and remember a
+/// password on a cold sidewalk is friction at exactly the wrong moment, so
+/// instead an organizer generates a short pairing code, staff types it once,
+/// and that device gets a long token scoped to a single event.
+///
+/// Two secrets on purpose: the SHORT code is readable aloud and dies on first
+/// use, the LONG token is what every scan presents and never gets spoken.
+model DoorSession {
+  id      String @id @default(cuid())
+  eventId String
+
+  /// Short, human-readable, single-use. Consumed when a device pairs.
+  pairingCode          String    @unique
+  pairingCodeExpiresAt DateTime
+  claimedAt            DateTime?
+
+  /// Issued at pairing. Null until then, so an unclaimed session grants nothing.
+  token       String? @unique
+  deviceLabel String?
+
+  /// Doors are a one-night affair; a token that outlives the event is a
+  /// liability with no upside.
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  scans Scan[]
+
+  @@index([eventId])
+}
+
 enum ScanResult {
   ADMITTED
   DUPLICATE // already checked in — show when and where
@@ -410,8 +447,10 @@ model Scan {
   /// True when the scan was captured offline and synced later.
   syncedFromOffline Boolean    @default(false)
 
-  ticket    Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
-  scannedBy User?   @relation("ScannedBy", fields: [scannedByUserId], references: [id], onDelete: SetNull)
+  ticket        Ticket?      @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  scannedBy     User?        @relation("ScannedBy", fields: [scannedByUserId], references: [id], onDelete: SetNull)
+  doorSession   DoorSession? @relation(fields: [doorSessionId], references: [id])
+  doorSessionId String?
 
   @@index([ticketId])
   @@index([scannedAt])
