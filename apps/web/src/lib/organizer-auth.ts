@@ -54,9 +54,18 @@ async function fromClerk(): Promise<OrganizerAuth | null> {
 }
 
 async function fromDevSecret(request: Request): Promise<OrganizerAuth | null> {
+  // Hard stop: none of this exists outside development.
   if (process.env.NODE_ENV === "production") return null;
+
   const expected = process.env.ADMIN_API_SECRET?.trim();
-  if (!expected || bearerToken(request) !== expected) return null;
+  const secretPresented = Boolean(expected) && bearerToken(request) === expected;
+
+  // The dashboard's own buttons are browser fetches with no way to hold a
+  // server secret, so in development an explicit organizerId is accepted on
+  // its own. This is exactly as insecure as it sounds and is the reason the
+  // production guard above is the first line of the function — the whole
+  // fallback disappears the moment Clerk is configured.
+  if (!secretPresented && clerkConfigured()) return null;
 
   const url = new URL(request.url);
   const organizerId =
