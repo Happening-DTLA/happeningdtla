@@ -36,8 +36,10 @@ with financial backing.
 - **Venue** — sign in, connect their own Stripe, invite their team, generate
   door codes, choose whether to be publicly named.
 
-28 commits, branch `feat/native-monorepo`, **no git remote — nothing is pushed
-anywhere.**
+29 commits on `main`, pushed to a **private** repo at
+`Happenning-DTLA/happenningdtla`. `main` is the trunk and the default branch;
+branch off it and open a PR. The old `feat/native-monorepo` branch was
+fast-forwarded into `main` and is gone.
 
 ---
 
@@ -172,7 +174,7 @@ config loader and the "fix" downgrades to Prisma 6.
 | Resend | Key set, **sends only to the account address** — no verified domain |
 | Database | Local via `prisma dev` |
 | Apple Developer | Not enrolled |
-| GitHub | **No repo. Nothing pushed.** |
+| GitHub | Private repo, `Happenning-DTLA/happenningdtla`, `main` pushed |
 
 `ADMIN_API_SECRET` is a development-only placeholder used by test scripts.
 It is refused in production.
@@ -197,7 +199,9 @@ None block anything else. Guest checkout means no buyer needs an account.
 **Small and mine to do:**
 - Remove the dev-only "claim a venue" button — invitations replace it, and it
   should not exist when a venue partner first sees the dashboard.
-- Push to GitHub so the other developer can actually see any of this.
+- Invite the other developer to the GitHub org and the repo, and send them
+  the Clerk and Stripe **test** keys out of band — `.env` is gitignored, so a
+  clone gives them `.env.example` and nothing else.
 - Re-run the door tests against real Postgres before the night. Some burst
   behaviour is an artifact of the local `prisma dev` proxy.
 
