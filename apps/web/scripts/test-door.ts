@@ -49,8 +49,11 @@ async function safePost(path: string, body: unknown, token?: string) {
   }
 }
 
+/** Organizer id for the dev auth path; set in main(). */
+let ORG_ID = "";
+
 const post = (path: string, body: unknown, token?: string) =>
-  fetch(`${BASE}${path}`, {
+  fetch(`${BASE}${path}${token === ADMIN && ORG_ID ? (path.includes("?") ? "&" : "?") + "organizerId=" + ORG_ID : ""}`, {
     signal: AbortSignal.timeout(15_000),
     method: "POST",
     headers: {
@@ -93,6 +96,7 @@ async function createSequentialSession() {
 
 async function main() {
   const event = await prisma.event.findFirstOrThrow({ where: { status: "PUBLISHED" } });
+  ORG_ID = event.organizerId;
 
   // Each run mints several door sessions, and the per-event cap is real — so
   // previous runs would eventually block this one. Retire them first.
@@ -142,8 +146,13 @@ async function main() {
     check("pairing before the window is refused", tooEarly.status === 401, `HTTP ${tooEarly.status}`);
   }
   {
-    const other = await prisma.organizer.findFirstOrThrow({ where: { id: { not: (await prisma.event.findUniqueOrThrow({ where: { id: event.id }, select: { organizerId: true } })).organizerId } } });
-    const foreign = await post("/api/door/sessions", { eventId: event.id, organizerId: other.id, ...testWindow }, ADMIN);
+    // Signed in as a DIFFERENT venue, minting a code for this event must fail.
+    const other = await prisma.organizer.findFirstOrThrow({ where: { id: { not: event.organizerId } } });
+    const foreign = await fetch(`${BASE}/api/door/sessions?organizerId=${other.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ADMIN}` },
+      body: JSON.stringify({ eventId: event.id, ...testWindow }),
+    });
     check("another organizer cannot open your door", foreign.status === 400, `HTTP ${foreign.status}`);
   }
 

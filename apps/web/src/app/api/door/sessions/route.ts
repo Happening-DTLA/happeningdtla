@@ -1,17 +1,11 @@
 import { z } from "zod";
 import { createDoorSession, doorWindowFor, DoorWindowError } from "@/lib/door";
-import { requireAdmin } from "@/lib/door-auth";
+import { requireManager, requireOrganizer } from "@/lib/organizer-auth";
 import { prisma } from "@/lib/prisma";
 import { ok, fail, withErrorBoundary } from "@/lib/api-response";
 
 const Body = z.object({
   eventId: z.string().min(1),
-  /**
-   * Which business is opening this door. Today it is supplied and checked
-   * against the event's owner; once organizer accounts exist it comes from the
-   * session instead, and the shape of the check does not change.
-   */
-  organizerId: z.string().min(1).optional(),
   deviceLabel: z.string().trim().max(60).optional(),
   /** Overrides for a soundcheck door, a multi-day run, or testing. */
   activeFrom: z.iso.datetime().optional(),
@@ -20,8 +14,12 @@ const Body = z.object({
 
 /** Organizer action: mint a pairing code for one of your own events. */
 async function handlePOST(request: Request): Promise<Response> {
-  const denied = requireAdmin(request);
+  // Door codes are venue settings, so this is owner/manager work. Door staff
+  // scanning at a door must never be able to mint more scanners.
+  const auth = await requireOrganizer(request);
+  const denied = requireManager(auth);
   if (denied) return denied;
+  if (!auth.ok) return auth.error;
 
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -34,9 +32,10 @@ async function handlePOST(request: Request): Promise<Response> {
   });
   if (!event) return fail(404, "not_found", "No such event.");
 
-  // Until organizer accounts land, an omitted organizerId means "the event's
-  // own owner". Explicit and checked once auth exists.
-  const organizerId = parsed.data.organizerId ?? event.organizerId;
+  // The organizer comes from WHO IS SIGNED IN, never from the request body.
+  // Letting a caller name their own organizer id is how you open someone
+  // else's door. createDoorSession still verifies the event belongs to them.
+  const organizerId = auth.organizerId;
 
   try {
     const session = await createDoorSession({

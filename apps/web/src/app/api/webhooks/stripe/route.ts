@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { fulfillOrder, releaseOrder, sendOrderConfirmation } from "@/lib/orders";
+import { syncAccountStatus } from "@/lib/connect";
 
 /**
  * Stripe webhook receiver — this is what turns a payment into tickets.
@@ -89,6 +90,19 @@ export async function POST(request: Request) {
           await releaseOrder(orderId, event.type === "payment_intent.canceled" ? "CANCELLED" : "FAILED");
           console.log(`[webhook] order ${orderId} released after ${event.type}`);
         }
+        break;
+      }
+
+      case "account.updated": {
+        // A venue finished (or advanced) Stripe onboarding. This is what flips
+        // them from platform-charge fallback to direct charges, so their money
+        // starts landing in their own bank rather than ours.
+        const account = event.data.object as Stripe.Account;
+        const status = await syncAccountStatus(account.id);
+        console.log(
+          `[webhook] account ${account.id} updated — charges=${status.chargesEnabled} payouts=${status.payoutsEnabled}` +
+            (status.matched ? "" : " (no organizer matched)"),
+        );
         break;
       }
 
