@@ -116,3 +116,68 @@ export function pacificDayRange(
     endExclusive: pacificWallClockToUtc(y, mo, d + 1, 0, 0, 0, 0),
   };
 }
+
+/**
+ * Today's calendar date in Los Angeles, as YYYY-MM-DD.
+ *
+ * Deliberately NOT `new Date().toISOString().slice(0, 10)`. That is the UTC
+ * day, which from 5pm Pacific onward is already tomorrow — so "what's on
+ * tonight", asked at 8pm on the way downtown, would quietly answer with
+ * tomorrow's events and show an empty map.
+ */
+export function pacificToday(now: DateLike = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: PACIFIC,
+  }).formatToParts(toDate(now));
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/**
+ * Whole-day arithmetic on a calendar date.
+ *
+ * Doing this in UTC is correct precisely BECAUSE the input carries no zone —
+ * a YYYY-MM-DD is a wall-calendar day, so stepping from its UTC midnight can
+ * never land mid-DST-transition the way adding 24h to a Pacific instant can.
+ * This is the same reasoning as formatting calendar dates in UTC; see note (2)
+ * at the top of this file.
+ */
+export function addCalendarDays(day: string, n: number): string {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The weekend people actually mean by "this weekend" — Friday through Sunday,
+ * as inclusive calendar bounds for a search.
+ *
+ * Asked DURING the weekend it starts today rather than pointing at next
+ * Friday. Someone opening the map on a Saturday night wants tonight, and a
+ * filter that answers with events six days away reads as broken.
+ */
+export function pacificWeekendRange(now: DateLike = new Date()): {
+  from: string;
+  to: string;
+} {
+  const today = pacificToday(now);
+  // Safe in UTC for the reason given on addCalendarDays.
+  const dayOfWeek = new Date(`${today}T00:00:00Z`).getUTCDay(); // 0 Sun … 6 Sat
+
+  // Sunday is the tail of the weekend already underway, not the start of one.
+  if (dayOfWeek === 0) return { from: today, to: today };
+
+  // Friday or Saturday: from now through Sunday.
+  if (dayOfWeek >= 5) {
+    return { from: today, to: addCalendarDays(today, 7 - dayOfWeek) };
+  }
+
+  // Monday–Thursday: the weekend that hasn't started yet.
+  return {
+    from: addCalendarDays(today, 5 - dayOfWeek),
+    to: addCalendarDays(today, 7 - dayOfWeek),
+  };
+}
