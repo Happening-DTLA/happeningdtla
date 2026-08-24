@@ -86,11 +86,11 @@ export function toApiEventSummary(e: EventSummaryRow): ApiEventSummary {
         : priceBreakdown(e.fromPriceCents).totalCents,
     soldOut,
     venue: toApiVenue(e.venue),
-    organizer: {
-      id: e.organizer.id,
-      slug: e.organizer.slug,
-      name: e.organizer.name,
-    },
+    // Withheld entirely rather than blanked, so a client cannot render an
+    // empty "Presented by" line for a business that asked not to be named.
+    organizer: e.organizer.publiclyAttributed
+      ? { id: e.organizer.id, slug: e.organizer.slug, name: e.organizer.name }
+      : null,
   };
 }
 

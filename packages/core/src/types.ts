@@ -98,7 +98,8 @@ export interface ApiEventSummary {
   fromAllInCents: number | null;
   soldOut: boolean;
   venue: ApiVenue;
-  organizer: ApiOrganizer;
+  /** Null when the business has chosen not to be named publicly. */
+  organizer: ApiOrganizer | null;
 }
 
 export interface ApiEvent extends ApiEventSummary {

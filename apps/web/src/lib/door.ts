@@ -200,13 +200,24 @@ export async function claimDoorSession(pairingCode: string, deviceLabel?: string
 /** Resolves a device token to a live session, or null. */
 export async function authenticateDoor(token: string) {
   if (!token) return null;
-  const session = await withRetry(() =>
+  const lookup = () =>
     prisma.doorSession.findUnique({
       where: { token },
       include: { event: { include: { venue: { select: { name: true } } } } },
-    }),
-  );
-  if (!session) return null;
+    });
+
+  let session = await withRetry(lookup);
+
+  // A null here is ambiguous under contention: it means "no such session", but
+  // a connection fault can also surface as an empty result rather than a
+  // throw. Getting this wrong is expensive — the scanner treats an invalid
+  // session as revoked, wipes its stored credential and sends staff back to
+  // pairing. Losing a paired phone mid-shift because of a blip is not
+  // acceptable, so confirm before concluding.
+  if (!session) {
+    session = await withRetry(lookup);
+    if (!session) return null;
+  }
   const now = new Date();
   if (session.revokedAt) return null;
   if (session.activeFrom > now) return null;

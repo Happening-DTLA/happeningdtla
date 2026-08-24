@@ -1,7 +1,8 @@
-import { ClerkProvider } from "@clerk/nextjs";
+import { ClerkProvider, Show, SignInButton, UserButton } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { clerkAppearance } from "@/lib/clerk-appearance";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -47,12 +48,41 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="font-mono text-sm font-bold tracking-tight">
               DTLA<span className="text-accent">Happening</span>
             </Link>
-            <Link
-              href="/tickets"
-              className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:border-accent hover:text-accent"
-            >
-              My tickets
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/tickets"
+                className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:border-accent hover:text-accent"
+              >
+                My tickets
+              </Link>
+              {clerkConfigured ? (
+                <>
+                  {/* Clerk Core 3 replaced SignedIn/SignedOut with <Show>.
+                      Note it only HIDES children — it is not an authorization
+                      boundary. Everything that actually guards data does its
+                      own server-side check. */}
+                  <Show when="signed-out">
+                    {/* Buying a ticket never requires an account. This is for
+                        people who want tickets across devices, and for anyone
+                        running a venue. */}
+                    <SignInButton mode="modal">
+                      <button
+                        type="button"
+                        className="rounded-full bg-accent px-3 py-1.5 text-xs font-semibold text-accent-ink"
+                      >
+                        Sign in
+                      </button>
+                    </SignInButton>
+                  </Show>
+                  <Show when="signed-in">
+                    <UserButton
+                      appearance={{ elements: { avatarBox: { width: 28, height: 28 } } }}
+                      userProfileProps={{ appearance: clerkAppearance }}
+                    />
+                  </Show>
+                </>
+              ) : null}
+            </div>
           </div>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16">{children}</main>

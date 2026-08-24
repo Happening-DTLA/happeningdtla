@@ -61,6 +61,14 @@ model Organizer {
   contactEmail String
   contactPhone String?
 
+  /// Whether this business is named publicly on its events.
+  ///
+  /// Some venues want the billing to be attributed and some don't — a landlord
+  /// hosting under a promoter's brand, or a business that would rather the
+  /// night be the thing people remember. Defaults to shown, because most
+  /// organizers want the credit and hiding it should be a deliberate choice.
+  publiclyAttributed Boolean @default(true)
+
   // Stripe Connect
   stripeAccountId String? @unique
   chargesEnabled  Boolean @default(false)

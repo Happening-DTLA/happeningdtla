@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
  * not send.
  */
 
-const organizerSelect = { id: true, slug: true, name: true } as const;
+const organizerSelect = { id: true, slug: true, name: true, publiclyAttributed: true } as const;
 
 const eventSummaryInclude = {
   venue: true,

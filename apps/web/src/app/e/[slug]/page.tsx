@@ -52,7 +52,9 @@ export default async function EventPage({ params }: PageProps<"/e/[slug]">) {
           {event.venue.address1}
           {event.venue.neighborhood ? ` · ${event.venue.neighborhood}` : ""}
         </p>
-        <p className="mt-1 text-xs text-text-muted">Presented by {event.organizer.name}</p>
+        {event.organizer ? (
+          <p className="mt-1 text-xs text-text-muted">Presented by {event.organizer.name}</p>
+        ) : null}
         <a
           href={`https://maps.apple.com/?q=${mapQuery}`}
           className="mt-3 inline-block font-mono text-xs text-accent underline underline-offset-4"

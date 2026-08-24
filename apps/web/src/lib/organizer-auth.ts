@@ -53,19 +53,21 @@ async function fromClerk(): Promise<OrganizerAuth | null> {
   return { ok: true, organizerId: membership.organizerId, role: membership.role, userId: membership.userId };
 }
 
+/** True when the caller presented the development admin secret. */
+function presentsDevSecret(request: Request): boolean {
+  const expected = process.env.ADMIN_API_SECRET?.trim();
+  return Boolean(expected) && bearerToken(request) === expected;
+}
+
 async function fromDevSecret(request: Request): Promise<OrganizerAuth | null> {
   // Hard stop: none of this exists outside development.
   if (process.env.NODE_ENV === "production") return null;
 
-  const expected = process.env.ADMIN_API_SECRET?.trim();
-  const secretPresented = Boolean(expected) && bearerToken(request) === expected;
-
-  // The dashboard's own buttons are browser fetches with no way to hold a
-  // server secret, so in development an explicit organizerId is accepted on
-  // its own. This is exactly as insecure as it sounds and is the reason the
-  // production guard above is the first line of the function — the whole
-  // fallback disappears the moment Clerk is configured.
-  if (!secretPresented && clerkConfigured()) return null;
+  // Without Clerk, a bare organizerId is accepted so the dashboard's own
+  // buttons work — browser fetches cannot hold a server secret. With Clerk
+  // configured, only an explicit secret qualifies, which is what test scripts
+  // and CLI tooling present.
+  if (!presentsDevSecret(request) && clerkConfigured()) return null;
 
   const url = new URL(request.url);
   const organizerId =
@@ -92,11 +94,18 @@ async function fromDevSecret(request: Request): Promise<OrganizerAuth | null> {
 }
 
 export async function requireOrganizer(request: Request): Promise<OrganizerAuth> {
+  // Order matters. Clerk answers definitively — including a 401 for a signed
+  // out browser — so checking it first would make the development secret
+  // unreachable the moment Clerk is configured, breaking every test script and
+  // CLI call that has no browser session. An explicitly presented secret is a
+  // deliberate act, so it wins.
+  if (!clerkConfigured() || presentsDevSecret(request)) {
+    const viaSecret = await fromDevSecret(request);
+    if (viaSecret) return viaSecret;
+  }
+
   const viaClerk = await fromClerk();
   if (viaClerk) return viaClerk;
-
-  const viaSecret = await fromDevSecret(request);
-  if (viaSecret) return viaSecret;
 
   return {
     ok: false,

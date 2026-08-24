@@ -68,9 +68,11 @@ export default function EventScreen() {
           {venue.address1}
           {venue.neighborhood ? ` · ${venue.neighborhood}` : ""}
         </Text>
-        <Text style={{ color: theme.textMuted, fontSize: 12 }}>
-          Presented by {event.organizer.name}
-        </Text>
+        {event.organizer ? (
+          <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+            Presented by {event.organizer.name}
+          </Text>
+        ) : null}
         <Pressable
           onPress={() => mapsUrl && Linking.openURL(mapsUrl)}
           accessibilityRole="link"

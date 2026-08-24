@@ -128,8 +128,14 @@ export default function ScanScreen() {
         setVerdict({ ...result, key: Date.now() });
         refreshStats(door.token);
       } catch (err) {
-        // An expired or revoked device is a real answer, not a network problem.
-        if (err instanceof ApiRequestError && err.code === "door_session_invalid") {
+        // Only unpair on a definitive answer from the server. A network error
+        // or timeout must NOT wipe the credential — that would strand a door
+        // phone mid-shift over a dropped packet.
+        if (
+          err instanceof ApiRequestError &&
+          err.code === "door_session_invalid" &&
+          err.status === 401
+        ) {
           await clearDoor();
           router.replace("/door/pair");
           return;
