@@ -13,7 +13,7 @@ export default async function DoorsPage({
 }) {
   const { eventId } = await searchParams;
   const ctx = await getOrganizerContext();
-  if (!ctx) return <p className="text-text-muted">Sign in to manage door codes.</p>;
+  if (ctx.status !== "ok") return null; // the layout has already redirected
   if (ctx.role === "DOOR_STAFF") {
     return <p className="text-text-muted">Door staff can&apos;t create door codes.</p>;
   }

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function OrganizerHome() {
   const ctx = await getOrganizerContext();
-  if (!ctx) return <p className="text-text-muted">Sign in to manage your venue.</p>;
+  if (ctx.status !== "ok") return null; // the layout has already redirected
 
   const events = await prisma.event.findMany({
     where: { organizerId: ctx.organizerId },

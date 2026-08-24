@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
@@ -25,8 +26,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/**
+ * ClerkProvider is applied only when configured. Rendering it without keys
+ * throws, and the app is deliberately usable before organizer accounts exist —
+ * browsing and buying tickets don't need an account at all.
+ */
+const clerkConfigured = Boolean(
+  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim() && process.env.CLERK_SECRET_KEY?.trim(),
+);
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return (
+  const page = (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
@@ -52,4 +62,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </body>
     </html>
   );
+
+  return clerkConfigured ? <ClerkProvider>{page}</ClerkProvider> : page;
 }

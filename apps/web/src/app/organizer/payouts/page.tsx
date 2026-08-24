@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PayoutsPage() {
   const ctx = await getOrganizerContext();
-  if (!ctx) return <p className="text-text-muted">Sign in to manage payouts.</p>;
+  if (ctx.status !== "ok") return null; // the layout has already redirected
   if (ctx.role === "DOOR_STAFF") {
     return <p className="text-text-muted">Door staff can&apos;t manage payouts.</p>;
   }
