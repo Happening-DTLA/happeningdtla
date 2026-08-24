@@ -15,14 +15,17 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.dtlahappening.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Scanning ticket QR codes at venue doors."
+        "NSCameraUsageDescription": "Scanning ticket QR codes at venue doors.",
+        "NSLocationWhenInUseUsageDescription": "Showing events near you on the map, and where you are in relation to them."
       }
     },
     "android": {
       "package": "com.dtlahappening.app",
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
       ]
     },
     "plugins": [

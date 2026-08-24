@@ -3,8 +3,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/theme";
 
 /**
- * Four tabs, matching what people already expect from a ticketing app.
+ * Five tabs, matching what people already expect from a ticketing app.
  * Familiar navigation is also one less thing to explain to door staff.
+ *
+ * Map sits second, directly after Explore: it is a primary way to decide where
+ * to go, not a detail view of a search. Buried behind a toggle it would not be
+ * found, and five is the point where a tab bar starts to crowd — anything more
+ * needs a different pattern.
  */
 export default function TabLayout() {
   return (
@@ -28,6 +33,13 @@ export default function TabLayout() {
         options={{
           title: "Explore",
           tabBarIcon: ({ color, size }) => <Ionicons name="compass-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="map"
+        options={{
+          title: "Map",
+          tabBarIcon: ({ color, size }) => <Ionicons name="map-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
