@@ -8,6 +8,7 @@ import type {
   ApiDoorPairing,
   ApiDoorStats,
   ApiScanResponse,
+  ScanResultCode,
   CheckoutRequest,
   CheckoutResponse,
   EventSearchParams,
@@ -150,11 +151,30 @@ export const api = {
         body: JSON.stringify({ pairingCode, deviceLabel }),
       }),
 
-    scan: (token: string, code: string) =>
+    /**
+     * `timeoutMs` matters more than it looks. A door cannot wait out a default
+     * TCP timeout with people queued, so a slow network is treated the same as
+     * no network: give up fast and decide offline.
+     */
+    scan: (token: string, code: string, timeoutMs = 2500) =>
       request<ApiScanResponse>("/api/door/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ code }),
+        signal: AbortSignal.timeout(timeoutMs),
+      }),
+
+    manifest: (token: string) =>
+      request<{ eventId: string; generatedAt: string; valid: string[]; alreadyCheckedIn: string[] }>(
+        "/api/door/manifest",
+        { headers: { Authorization: `Bearer ${token}` } },
+      ),
+
+    sync: (token: string, scans: { code: string; scannedAt: string }[]) =>
+      request<{ results: { code: string; result: ScanResultCode }[] }>("/api/door/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ scans }),
       }),
 
     stats: (token: string, signal?: AbortSignal) =>

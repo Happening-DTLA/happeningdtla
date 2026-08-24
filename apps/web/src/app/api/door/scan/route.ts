@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { scanTicket } from "@/lib/door";
+import { InconclusiveScanError, scanTicket } from "@/lib/door";
 import { requireDoorSession } from "@/lib/door-auth";
 import { ok, fail, withErrorBoundary } from "@/lib/api-response";
 
@@ -27,6 +27,11 @@ async function handlePOST(request: Request): Promise<Response> {
       syncedFromOffline: parsed.data.syncedFromOffline,
     });
   } catch (err) {
+    if (err instanceof InconclusiveScanError) {
+      // Retryable, and explicitly NOT a rejection. The scanner shows "try
+      // again" or decides from its offline manifest.
+      return fail(503, "scan_failed", "Couldn't read that ticket. Scan it again.");
+    }
     // Never let a door see an empty response body. A scanner that gets
     // unparseable output has no way to tell "let them in" from "don't", and
     // the person on the door has to decide with no information.

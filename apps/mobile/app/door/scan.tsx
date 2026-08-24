@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { ApiScanResponse } from "@dtlahappening/core";
-import { formatTicketCode, looksLikeTicketCode } from "@dtlahappening/core";
+import { TICKET_CODE_LENGTH, formatTicketCode, normalizeScannedCode } from "@dtlahappening/core";
 import { api, ApiRequestError } from "@/api";
 import { clearDoor, loadDoor, type DoorCredential } from "@/door-store";
+import {
+  clearOfflineState,
+  decideOffline,
+  enqueue,
+  dequeue,
+  loadManifest,
+  loadQueue,
+  saveManifest,
+} from "@/door-offline";
 import { theme, space } from "@/theme";
 import { Loading } from "@/components";
 
@@ -20,6 +29,7 @@ const VERDICT: Record<string, { bg: string; fg: string; icon: keyof typeof Ionic
   REFUNDED_TICKET: { bg: "#dc2626", fg: "#ffffff", icon: "close-circle", title: "REFUNDED" },
   NOT_YET_VALID: { bg: "#d97706", fg: "#ffffff", icon: "time", title: "NOT YET VALID" },
   ERROR: { bg: "#525252", fg: "#ffffff", icon: "cloud-offline", title: "TRY AGAIN" },
+  NO_MANIFEST: { bg: "#525252", fg: "#ffffff", icon: "cloud-offline", title: "NO OFFLINE DATA" },
 };
 
 export default function ScanScreen() {
@@ -29,6 +39,9 @@ export default function ScanScreen() {
   const [manual, setManual] = useState("");
   const [showManual, setShowManual] = useState(false);
   const [stats, setStats] = useState<{ sold: number; admitted: number } | null>(null);
+  const [queued, setQueued] = useState(0);
+  const [manifestAt, setManifestAt] = useState<string | null>(null);
+  const [offlineMode, setOfflineMode] = useState(false);
   const busy = useRef(false);
   const router = useRouter();
 
@@ -52,6 +65,58 @@ export default function ScanScreen() {
     if (door) refreshStats(door.token);
   }, [door, refreshStats]);
 
+  const refreshQueueCount = useCallback(async () => {
+    setQueued((await loadQueue()).length);
+  }, []);
+
+  useEffect(() => {
+    loadManifest().then((m) => setManifestAt(m?.generatedAt ?? null));
+    refreshQueueCount();
+  }, [refreshQueueCount]);
+
+  const downloadManifest = useCallback(async () => {
+    if (!door) return;
+    try {
+      const m = await api.door.manifest(door.token);
+      await saveManifest(m);
+      setManifestAt(m.generatedAt);
+      Alert.alert("Ready for offline", `${m.valid.length} tickets cached on this phone.`);
+    } catch (err) {
+      Alert.alert("Couldn't download", err instanceof ApiRequestError ? err.message : "Try again.");
+    }
+  }, [door]);
+
+  /** Pushes queued scans whenever the network comes back. */
+  const syncQueue = useCallback(async () => {
+    if (!door) return;
+    const q = await loadQueue();
+    if (q.length === 0) return;
+    try {
+      const { results } = await api.door.sync(door.token, q);
+      await dequeue(q.length);
+      await refreshQueueCount();
+      setOfflineMode(false);
+
+      // Another door may have admitted the same person while we were offline.
+      // Surface it rather than hiding it — staff can decide what to do.
+      const conflicts = results.filter((r) => r.result === "DUPLICATE");
+      if (conflicts.length > 0) {
+        Alert.alert(
+          "Synced with conflicts",
+          `${conflicts.length} of ${results.length} were already scanned elsewhere while this phone was offline.`,
+        );
+      }
+    } catch {
+      // Still offline. The queue survives; try again on the next tick.
+    }
+  }, [door, refreshQueueCount]);
+
+  useEffect(() => {
+    if (!door) return;
+    const t = setInterval(syncQueue, 15_000);
+    return () => clearInterval(t);
+  }, [door, syncQueue]);
+
   const submit = useCallback(
     async (raw: string) => {
       // A camera fires continuously; one scan at a time or the same ticket
@@ -63,12 +128,33 @@ export default function ScanScreen() {
         setVerdict({ ...result, key: Date.now() });
         refreshStats(door.token);
       } catch (err) {
-        const message = err instanceof ApiRequestError ? err.message : "Couldn't reach the server.";
-        setVerdict({ result: "INVALID_CODE", message, key: Date.now() });
+        // An expired or revoked device is a real answer, not a network problem.
         if (err instanceof ApiRequestError && err.code === "door_session_invalid") {
           await clearDoor();
           router.replace("/door/pair");
+          return;
         }
+
+        // Couldn't reach the server. Decide locally rather than stalling a
+        // queue of people, and queue the scan to reconcile later.
+        setOfflineMode(true);
+        const verdictOffline = await decideOffline(raw);
+        if (verdictOffline !== "NO_MANIFEST") {
+          await enqueue({ code: raw, scannedAt: new Date().toISOString() });
+          await refreshQueueCount();
+        }
+        setVerdict({
+          result: verdictOffline === "NO_MANIFEST" ? "INVALID_CODE" : verdictOffline,
+          message:
+            verdictOffline === "NO_MANIFEST"
+              ? "No signal and no offline data. Tap Prepare offline while you have service."
+              : verdictOffline === "ADMITTED"
+                ? "Offline — will sync"
+                : verdictOffline === "DUPLICATE"
+                  ? "Already scanned on this phone"
+                  : "Not a valid ticket",
+          key: Date.now(),
+        });
       } finally {
         // Long enough to read the verdict, short enough not to hold a queue.
         setTimeout(() => {
@@ -78,6 +164,21 @@ export default function ScanScreen() {
     },
     [door, refreshStats, router],
   );
+
+  // Reformat as they type so what's on screen matches what's printed under
+  // the QR, dash for dash. Comparing two differently-shaped strings by eye is
+  // how a character goes missing.
+  const setManualFormatted = (text: string) => {
+    const clean = normalizeScannedCode(text).slice(0, TICKET_CODE_LENGTH);
+    setManual(formatTicketCode(clean));
+  };
+  const manualLength = normalizeScannedCode(manual).length;
+  const manualComplete = manualLength === TICKET_CODE_LENGTH;
+  const runManual = () => {
+    if (manualLength === 0) return;
+    submit(manual);
+    setManual("");
+  };
 
   if (door === undefined) return <Loading />;
   if (door === null) {
@@ -128,6 +229,14 @@ export default function ScanScreen() {
           {door.venueName}
           {stats ? ` · ${stats.admitted} of ${stats.sold} in` : ""}
         </Text>
+        {offlineMode || queued > 0 ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+            <Ionicons name="cloud-offline" size={14} color="#fbbf24" />
+            <Text style={{ color: "#fbbf24", fontSize: 13, fontWeight: "600" }}>
+              {queued > 0 ? `Offline · ${queued} waiting to sync` : "Offline"}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {v && verdict ? (
@@ -170,25 +279,45 @@ export default function ScanScreen() {
         </View>
       ) : null}
 
-      <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: space.lg, paddingBottom: space.xxl, backgroundColor: "rgba(0,0,0,0.6)", gap: space.md }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}
+      >
+      <View style={{ padding: space.lg, paddingBottom: space.xxl, backgroundColor: "rgba(0,0,0,0.85)", gap: space.md }}>
         {showManual ? (
-          <View style={{ flexDirection: "row", gap: space.sm }}>
-            <TextInput
-              value={manual}
-              onChangeText={(t) => setManual(t.toUpperCase())}
-              placeholder="Type the code"
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              autoCapitalize="characters"
-              autoCorrect={false}
-              style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, paddingHorizontal: space.md, paddingVertical: 12, color: "#fff", fontSize: 16, letterSpacing: 1 }}
-            />
-            <Pressable
-              onPress={() => { submit(manual); setManual(""); }}
-              disabled={!looksLikeTicketCode(manual)}
-              style={{ backgroundColor: looksLikeTicketCode(manual) ? theme.accent : "rgba(255,255,255,0.15)", borderRadius: 10, paddingHorizontal: 20, justifyContent: "center" }}
-            >
-              <Text style={{ color: looksLikeTicketCode(manual) ? theme.accentInk : "rgba(255,255,255,0.5)", fontWeight: "700" }}>Check</Text>
-            </Pressable>
+          <View style={{ gap: space.sm }}>
+            <View style={{ flexDirection: "row", gap: space.sm }}>
+              <TextInput
+                value={manual}
+                onChangeText={setManualFormatted}
+                placeholder="XXXX-XXXX-XXXX-XXXX"
+                placeholderTextColor="rgba(255,255,255,0.4)"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                autoFocus
+                keyboardAppearance="dark"
+                returnKeyType="go"
+                onSubmitEditing={runManual}
+                style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, paddingHorizontal: space.md, paddingVertical: 14, color: "#fff", fontSize: 18, letterSpacing: 1.5 }}
+              />
+              <Pressable
+                onPress={runManual}
+                disabled={manualLength === 0}
+                style={{ backgroundColor: manualComplete ? theme.accent : "rgba(255,255,255,0.15)", borderRadius: 10, paddingHorizontal: 20, justifyContent: "center" }}
+              >
+                <Text style={{ color: manualComplete ? theme.accentInk : "rgba(255,255,255,0.6)", fontWeight: "700" }}>Check</Text>
+              </Pressable>
+            </View>
+            {/* Says exactly how far off you are. A disabled button with no
+                explanation is useless in a dark doorway — a dropped character
+                looks identical to a broken app. */}
+            <Text style={{ color: manualComplete ? theme.accent : "rgba(255,255,255,0.55)", fontSize: 13 }}>
+              {manualLength === 0
+                ? `${TICKET_CODE_LENGTH} characters — dashes optional`
+                : manualComplete
+                  ? "Ready"
+                  : `${manualLength} of ${TICKET_CODE_LENGTH} characters`}
+            </Text>
           </View>
         ) : null}
 
@@ -200,11 +329,17 @@ export default function ScanScreen() {
               {showManual ? "Hide keypad" : "Enter code by hand"}
             </Text>
           </Pressable>
+          {/* Do this before doors, while there's still signal. */}
+          <Pressable onPress={downloadManifest} hitSlop={10}>
+            <Text style={{ color: manifestAt ? "rgba(255,255,255,0.6)" : "#fbbf24", fontSize: 15 }}>
+              {manifestAt ? "Refresh offline" : "Prepare offline"}
+            </Text>
+          </Pressable>
           <Pressable
             onPress={() =>
               Alert.alert("Unpair this phone?", "You'll need a new code to scan again.", [
                 { text: "Cancel", style: "cancel" },
-                { text: "Unpair", style: "destructive", onPress: async () => { await clearDoor(); router.replace("/door/pair"); } },
+                { text: "Unpair", style: "destructive", onPress: async () => { await clearDoor(); await clearOfflineState(); router.replace("/door/pair"); } },
               ])
             }
             hitSlop={10}
@@ -213,6 +348,7 @@ export default function ScanScreen() {
           </Pressable>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

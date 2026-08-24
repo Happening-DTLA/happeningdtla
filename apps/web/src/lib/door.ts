@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { customAlphabet } from "nanoid";
 import { prisma } from "@/lib/prisma";
 import { normalizeScannedCode } from "@dtlahappening/core";
@@ -15,6 +16,18 @@ const newPairingCode = customAlphabet(pairingAlphabet, 6);
 const newToken = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 40);
 
 export const PAIRING_CODE_TTL_MINUTES = 30;
+
+/**
+ * Raised when we could not determine a ticket's status — as distinct from
+ * determining that it is invalid. Never render this as a rejection.
+ */
+export class InconclusiveScanError extends Error {
+  readonly inconclusive = true;
+  constructor() {
+    super("Could not read the ticket");
+    this.name = "InconclusiveScanError";
+  }
+}
 
 /**
  * Transient database faults — a dropped pooled connection, a lost
@@ -194,13 +207,12 @@ export async function scanTicket(input: {
       await log("INVALID_CODE");
       return { result: "INVALID_CODE", message: "Not a valid ticket" };
     }
-    // It does exist — the first read lied. Tell the door to scan again rather
-    // than guess, since we no longer have the full record loaded.
-    await log("INVALID_CODE");
-    return {
-      result: "INVALID_CODE",
-      message: "Couldn't read that ticket. Scan it again.",
-    };
+    // It DOES exist — the first read lied. Do not return INVALID_CODE here:
+    // the scanner paints that red as "NOT VALID", which would have a door
+    // person turn away someone holding a real ticket. This is an inconclusive
+    // read, not a verdict, so raise it as retryable and let the caller either
+    // retry or fall back to the offline manifest.
+    throw new InconclusiveScanError();
   }
 
   if (ticket.eventId !== input.eventId) {
@@ -276,4 +288,111 @@ export async function doorStats(eventId: string) {
     }),
   ]);
   return { sold, admitted, remaining: Math.max(0, sold - admitted) };
+}
+
+/**
+ * SHA-256 of a normalised ticket code.
+ *
+ * The offline manifest ships hashes rather than codes on purpose. A door phone
+ * gets lost or borrowed; if it carried the literal codes for the night, whoever
+ * held it could mint working QR images for every unscanned ticket. A hash of a
+ * 79-bit random code is not reversible, so the same file is useless to them
+ * while still letting the device answer "is this a real ticket?" offline.
+ */
+export function hashTicketCode(code: string): string {
+  return createHash("sha256").update(normalizeScannedCode(code)).digest("hex");
+}
+
+/**
+ * Everything a device needs to run a door with no network.
+ *
+ * Downloaded before doors open. Includes which tickets are ALREADY checked in
+ * so a device joining late doesn't wave through people who were admitted at
+ * another door.
+ */
+export async function doorManifest(eventId: string) {
+  const tickets = await prisma.ticket.findMany({
+    where: { eventId, status: "VALID", order: { status: "PAID" } },
+    select: { code: true, checkedInAt: true },
+  });
+
+  return {
+    eventId,
+    generatedAt: new Date().toISOString(),
+    valid: tickets.map((t) => hashTicketCode(t.code)),
+    alreadyCheckedIn: tickets
+      .filter((t) => t.checkedInAt)
+      .map((t) => hashTicketCode(t.code)),
+  };
+}
+
+export interface QueuedScan {
+  code: string;
+  /** When the door actually scanned it, not when it synced. */
+  scannedAt: string;
+}
+
+/**
+ * Applies scans captured while offline.
+ *
+ * Admission keeps the ORIGINAL door timestamp, not the sync time, so the audit
+ * log reflects when someone actually walked in.
+ *
+ * Two devices can both admit the same ticket while neither can see the other.
+ * That is unavoidable without a network, so it is resolved here rather than
+ * pretended away: the first sync to land wins and the second is reported back
+ * as a duplicate, giving staff an honest after-the-fact conflict list instead
+ * of a silent double-entry.
+ */
+export async function syncOfflineScans(input: {
+  sessionId: string;
+  eventId: string;
+  venueId?: string | null;
+  scans: QueuedScan[];
+}) {
+  const results: { code: string; result: ScanResult }[] = [];
+
+  for (const queued of input.scans) {
+    const code = normalizeScannedCode(queued.code);
+    const scannedAt = new Date(queued.scannedAt);
+
+    const ticket = await withRetry(() =>
+      prisma.ticket.findUnique({
+        where: { code },
+        select: { id: true, eventId: true, status: true, order: { select: { status: true } } },
+      }),
+    );
+
+    let result: ScanResult;
+    if (!ticket) result = "INVALID_CODE";
+    else if (ticket.eventId !== input.eventId) result = "WRONG_EVENT";
+    else if (ticket.status !== "VALID" || ticket.order.status !== "PAID") result = "REFUNDED_TICKET";
+    else {
+      const won = await withRetry(() =>
+        prisma.ticket.updateMany({
+          where: { id: ticket.id, checkedInAt: null },
+          data: { checkedInAt: scannedAt },
+        }),
+      );
+      result = won.count === 1 ? "ADMITTED" : "DUPLICATE";
+    }
+
+    await withRetry(() =>
+      prisma.scan.create({
+        data: {
+          ticketId: ticket?.id,
+          rawCode: queued.code.slice(0, 200),
+          result,
+          doorSessionId: input.sessionId,
+          venueId: input.venueId ?? undefined,
+          scannedAt,
+          syncedFromOffline: true,
+        },
+      }),
+    );
+
+    results.push({ code: queued.code, result });
+  }
+
+  return results;
 }
