@@ -37,7 +37,7 @@ with financial backing.
   door codes, choose whether to be publicly named.
 
 29 commits on `main`, pushed to a **private** repo at
-`Happenning-DTLA/happenningdtla`. `main` is the trunk and the default branch;
+`Happening-DTLA/happeningdtla`. `main` is the trunk and the default branch;
 branch off it and open a PR. The old `feat/native-monorepo` branch was
 fast-forwarded into `main` and is gone.
 
@@ -174,7 +174,7 @@ config loader and the "fix" downgrades to Prisma 6.
 | Resend | Key set, **sends only to the account address** — no verified domain |
 | Database | Local via `prisma dev` |
 | Apple Developer | Not enrolled |
-| GitHub | Private repo, `Happenning-DTLA/happenningdtla`, `main` pushed |
+| GitHub | Private repo, `Happening-DTLA/happeningdtla`, `main` pushed |
 
 `ADMIN_API_SECRET` is a development-only placeholder used by test scripts.
 It is refused in production.
