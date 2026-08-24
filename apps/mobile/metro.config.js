@@ -20,6 +20,37 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, "node_modules"),
 ];
 
+// Force ONE copy of React for everything Metro bundles.
+//
+// Three copies exist in this monorepo: the workspace root and apps/web on
+// 19.2.x for Next, and apps/mobile on 19.1.0 because Expo SDK 54 pins it.
+// Two Reacts in one bundle means the renderer's hook dispatcher is null and
+// every component dies with "Cannot read property 'useState' of null".
+//
+// extraNodeModules is NOT enough. It only applies when normal resolution
+// fails, and react-native is hoisted to the workspace root — so its own
+// `require("react")` resolves to the root copy long before any fallback runs,
+// while app code under apps/mobile resolves to the nested one.
+//
+// resolveRequest intercepts every request regardless of who is asking, which
+// is the only place that can guarantee a single instance. Pinned to the
+// version Expo expects rather than the newer root copy.
+const forceSingle = new Map();
+for (const name of ["react", "react-dom"]) {
+  try {
+    forceSingle.set(name, require.resolve(name, { paths: [projectRoot] }));
+  } catch {
+    /* not installed locally — leave it to normal resolution */
+  }
+}
+
+const defaultResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const pinned = forceSingle.get(moduleName);
+  if (pinned) return { type: "sourceFile", filePath: pinned };
+  return (defaultResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
+};
+
 // NOTE: deliberately NOT setting `disableHierarchicalLookup`.
 //
 // It's the usual monorepo recommendation — it stops a package being loaded
