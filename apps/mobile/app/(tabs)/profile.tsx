@@ -2,6 +2,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, space } from "@/theme";
+import { useLikes } from "@/likes-store";
 import { API_BASE_URL } from "@/api";
 
 /**
@@ -47,6 +48,7 @@ function Row({
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { liked } = useLikes();
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
@@ -72,7 +74,16 @@ export default function ProfileScreen() {
       </View>
 
       <View style={{ gap: space.md }}>
-        <Row icon="bookmark-outline" label="Saved events" hint="Coming soon" />
+        <Row
+          icon="heart-outline"
+          label="Saved events"
+          hint={
+            liked.length === 0
+              ? "Tap the heart on any event"
+              : `${liked.length} saved on this device`
+          }
+          onPress={() => router.push("/saved")}
+        />
         <Row icon="receipt-outline" label="Order history" hint="Coming soon" />
         <Row icon="notifications-outline" label="Notifications" hint="Coming soon" />
         <Row icon="business-outline" label="For organizers" hint="Manage your venue's events" />

@@ -1,8 +1,10 @@
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import type { ApiEventSummary, EventCategory } from "@dtlahappening/core";
 import { CATEGORY_LABELS, formatCents, formatDate, formatTimeRange } from "@dtlahappening/core";
 import { theme, space } from "./theme";
+import { useLikes } from "./likes-store";
 
 export function Loading() {
   return (
@@ -121,6 +123,40 @@ export function CategoryChips({
 }
 
 /**
+ * Save / unsave an event.
+ *
+ * Nested inside EventCard's own Pressable. A child Pressable consumes the
+ * touch, so tapping the heart saves the event rather than opening it — but it
+ * needs real hitSlop, because the target is small and it sits next to a
+ * control that navigates away.
+ */
+export function LikeButton({
+  event,
+  size = 22,
+}: {
+  event: ApiEventSummary;
+  size?: number;
+}) {
+  const { isLiked, toggle } = useLikes();
+  const liked = isLiked(event.id);
+  return (
+    <Pressable
+      onPress={() => toggle(event)}
+      accessibilityRole="button"
+      accessibilityState={{ selected: liked }}
+      accessibilityLabel={liked ? `Remove ${event.title} from saved` : `Save ${event.title}`}
+      hitSlop={12}
+    >
+      <Ionicons
+        name={liked ? "heart" : "heart-outline"}
+        size={size}
+        color={liked ? theme.accent : theme.textMuted}
+      />
+    </Pressable>
+  );
+}
+
+/**
  * The event card, shared by every list in the app.
  *
  * Navigates with router.push rather than <Link asChild> — asChild clones the
@@ -165,20 +201,23 @@ export function EventCard({
           {event.minAge ? ` · ${event.minAge}+` : ""}
         </Text>
       </View>
-      <View style={{ alignItems: "flex-end" }}>
-        {event.soldOut ? (
-          <Text style={{ color: theme.danger, fontSize: 13 }}>Sold out</Text>
-        ) : event.isFree ? (
-          <Text style={{ color: theme.accent, fontSize: 15, fontWeight: "700" }}>Free</Text>
-        ) : (
-          <>
-            <Text style={{ color: theme.accent, fontSize: 15, fontWeight: "700" }}>
-              {formatCents(event.fromAllInCents ?? 0)}
-            </Text>
-            {/* All-in on the first surface — no fee reveal at checkout. */}
-            <Text style={{ color: theme.textMuted, fontSize: 10 }}>all-in</Text>
-          </>
-        )}
+      <View style={{ alignItems: "flex-end", justifyContent: "space-between", gap: space.sm }}>
+        <View style={{ alignItems: "flex-end" }}>
+          {event.soldOut ? (
+            <Text style={{ color: theme.danger, fontSize: 13 }}>Sold out</Text>
+          ) : event.isFree ? (
+            <Text style={{ color: theme.accent, fontSize: 15, fontWeight: "700" }}>Free</Text>
+          ) : (
+            <>
+              <Text style={{ color: theme.accent, fontSize: 15, fontWeight: "700" }}>
+                {formatCents(event.fromAllInCents ?? 0)}
+              </Text>
+              {/* All-in on the first surface — no fee reveal at checkout. */}
+              <Text style={{ color: theme.textMuted, fontSize: 10 }}>all-in</Text>
+            </>
+          )}
+        </View>
+        <LikeButton event={event} />
       </View>
     </Pressable>
   );

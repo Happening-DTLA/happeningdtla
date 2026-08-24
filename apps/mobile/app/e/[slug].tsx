@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import type { ApiTicketType } from "@dtlahappening/core";
@@ -6,12 +6,26 @@ import { formatCents, formatDate, formatTime, formatTimeRange } from "@dtlahappe
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
 import { theme, space } from "@/theme";
-import { ErrorState, Label, Loading } from "@/components";
+import { ErrorState, Label, LikeButton, Loading } from "@/components";
+import { useLikes } from "@/likes-store";
 
 export default function EventScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const fetcher = useCallback((signal: AbortSignal) => api.event(slug, signal), [slug]);
   const { status, data: event, error, retry } = useAsync(fetcher, [slug]);
+  const { refreshSnapshot } = useLikes();
+
+  // This screen holds the freshest copy of an event, so it is where a saved
+  // snapshot gets brought up to date — no extra request, and a saved list
+  // heals itself as events are browsed.
+  //
+  // Keyed on the id alone: refreshSnapshot's identity changes on every write
+  // to the store, so depending on it would retrigger this effect with its own
+  // result. (The store also compares before writing, so this cannot loop.)
+  useEffect(() => {
+    if (event) refreshSnapshot(event);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event?.id]);
 
   if (status === "loading") return <Loading />;
   if (status === "error") return <ErrorState message={error.message} onRetry={retry} />;
@@ -34,9 +48,14 @@ export default function EventScreen() {
             Part of {event.night.name.split("—")[0].trim()}
           </Text>
         ) : null}
-        <Text style={{ color: theme.text, fontSize: 28, fontWeight: "700", lineHeight: 33 }}>
-          {event.title}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space.md }}>
+          <Text
+            style={{ color: theme.text, fontSize: 28, fontWeight: "700", lineHeight: 33, flex: 1 }}
+          >
+            {event.title}
+          </Text>
+          <LikeButton event={event} size={26} />
+        </View>
         <Text style={{ color: theme.text, fontSize: 16, fontWeight: "500" }}>
           {formatDate(event.startsAt)}
         </Text>
