@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { send } from "@/lib/email";
+import { orderConfirmationEmail } from "@/lib/emails/order-confirmation";
 import { priceBreakdown } from "@dtlahappening/core";
 import { newTicketCode } from "@/lib/ticket-code";
 import type { Prisma } from "@/generated/prisma/client";
@@ -296,4 +298,55 @@ export async function releaseExpiredHolds(): Promise<number> {
     if (await releaseOrder(id, "CANCELLED")) released += 1;
   }
   return released;
+}
+
+/**
+ * Emails a paid order's tickets to the buyer.
+ *
+ * Called AFTER fulfilment commits, never inside the transaction. Sending mail
+ * over the network from inside a database transaction holds a connection open
+ * on a third party's latency, and a provider outage would roll back tickets
+ * that were genuinely paid for. Tickets first; email is best-effort.
+ *
+ * Returns whether it sent, for logging. Never throws.
+ */
+export async function sendOrderConfirmation(orderId: string): Promise<boolean> {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        event: { include: { venue: true } },
+        tickets: { include: { ticketType: { select: { name: true } } }, orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    if (!order || order.status !== "PAID" || order.tickets.length === 0) return false;
+
+    const message = orderConfirmationEmail(
+      {
+        orderId: order.id,
+        accessToken: order.accessToken,
+        buyerEmail: order.buyerEmail,
+        buyerName: order.buyerName,
+        eventTitle: order.event.title,
+        eventStartsAt: order.event.startsAt,
+        venueName: order.event.venue.name,
+        venueAddress: order.event.venue.address1,
+        totalCents: order.totalCents,
+        tickets: order.tickets.map((t) => ({ code: t.code, tierName: t.ticketType.name })),
+      },
+      process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3100",
+    );
+
+    const { sent, reason } = await send(message);
+    if (!sent && reason !== "no_api_key") {
+      // Worth surfacing: the buyer has tickets but no way to find them from
+      // another device. Retry logic belongs here once there's a job runner.
+      console.error(`[email] confirmation for order ${orderId} failed: ${reason}`);
+    }
+    return sent;
+  } catch (err) {
+    console.error(`[email] confirmation for order ${orderId} threw`, err);
+    return false;
+  }
 }

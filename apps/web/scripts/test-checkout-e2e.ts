@@ -30,8 +30,21 @@ async function waitFor<T>(label: string, fn: () => Promise<T | null>, ms = 20000
 }
 
 async function main() {
-  const tier = await prisma.ticketType.findFirstOrThrow({
-    where: { isActive: true, priceCents: { gt: 0 }, event: { status: "PUBLISHED" } },
+  // A dedicated tier, not a seeded one. Sharing a tier with previous runs made
+  // this test fail for a reason unrelated to what it tests: /api/checkout
+  // sweeps expired holds on the way in, so a stale PENDING order from an
+  // earlier run released a seat between the baseline read and the purchase,
+  // and the arithmetic looked like an inventory bug when the counter was
+  // correct all along.
+  const event = await prisma.event.findFirstOrThrow({ where: { status: "PUBLISHED" } });
+  const tier = await prisma.ticketType.create({
+    data: {
+      eventId: event.id,
+      name: `E2E tier ${Date.now()}`,
+      priceCents: 1000,
+      quantity: 20,
+      maxPerOrder: 8,
+    },
     include: { event: true },
   });
   const before = tier.quantitySold;
@@ -105,6 +118,11 @@ async function main() {
     const after = await prisma.ticket.count({ where: { orderId: body.orderId } });
     check("still exactly 2 tickets after redelivery", after === 2, `${after} tickets`);
   }
+
+  await prisma.ticketType.updateMany({
+    where: { name: { startsWith: "E2E tier " } },
+    data: { isActive: false },
+  });
 
   console.log(failures === 0 ? "\nCheckout works end to end.\n" : `\n${failures} CHECK(S) FAILED\n`);
   process.exit(failures === 0 ? 0 : 1);

@@ -1,7 +1,7 @@
 import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
-import { fulfillOrder, releaseOrder } from "@/lib/orders";
+import { fulfillOrder, releaseOrder, sendOrderConfirmation } from "@/lib/orders";
 
 /**
  * Stripe webhook receiver — this is what turns a payment into tickets.
@@ -71,6 +71,11 @@ export async function POST(request: Request) {
             ? `[webhook] order ${orderId} fulfilled`
             : `[webhook] order ${orderId} was already fulfilled`,
         );
+
+        // Only on first fulfilment. A redelivered webhook must not re-send the
+        // email — a buyer receiving their tickets three times reads as a bug,
+        // or worse, as a double charge.
+        if (issued) await sendOrderConfirmation(orderId);
         break;
       }
 
