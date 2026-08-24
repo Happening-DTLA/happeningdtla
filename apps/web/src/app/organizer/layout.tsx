@@ -23,6 +23,7 @@ export default async function OrganizerLayout({ children }: { children: React.Re
           <Link href="/organizer" className="text-text-muted hover:text-accent">Events</Link>
           <Link href="/organizer/payouts" className="text-text-muted hover:text-accent">Payouts</Link>
           <Link href="/organizer/doors" className="text-text-muted hover:text-accent">Door codes</Link>
+          <Link href="/organizer/team" className="text-text-muted hover:text-accent">Team</Link>
           <Link href="/organizer/settings" className="text-text-muted hover:text-accent">Settings</Link>
         </nav>
       </header>

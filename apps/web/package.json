@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "test:inventory": "tsx scripts/test-inventory.ts",
     "test:checkout": "tsx scripts/test-checkout-e2e.ts",
-    "test:door": "tsx scripts/test-door.ts"
+    "test:door": "tsx scripts/test-door.ts",
+    "test:team": "tsx scripts/test-team.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.8.0",

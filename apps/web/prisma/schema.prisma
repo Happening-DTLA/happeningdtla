@@ -78,6 +78,7 @@ model Organizer {
   updatedAt DateTime @updatedAt
 
   members OrganizerMember[]
+  invites OrganizerInvite[]
   venues  Venue[]
   events  Event[]
 }
@@ -86,6 +87,33 @@ enum OrganizerRole {
   OWNER // full access incl. payouts
   MANAGER // create/edit events, see sales
   DOOR_STAFF // can ONLY scan tickets — never sees revenue
+}
+
+/// A pending invitation to join a business.
+///
+/// The only real way to add someone. Held as a row rather than a bare signed
+/// link so it can be revoked, listed, and audited — an invite you cannot take
+/// back is a permanent hole.
+model OrganizerInvite {
+  id          String        @id @default(cuid())
+  organizerId String
+  email       String
+  role        OrganizerRole @default(DOOR_STAFF)
+
+  /// Unguessable. Whoever holds it can join, so it is treated as a credential.
+  token String @unique
+
+  invitedByUserId  String?
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  organizer Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
+  @@index([email])
 }
 
 model OrganizerMember {
