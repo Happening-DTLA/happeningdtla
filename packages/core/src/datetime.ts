@@ -181,3 +181,64 @@ export function pacificWeekendRange(now: DateLike = new Date()): {
     to: addCalendarDays(today, 7 - dayOfWeek),
   };
 }
+
+/** Whole days from one calendar date to another. Negative when `to` is earlier. */
+export function calendarDaysBetween(from: string, to: string): number {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** Hour of the day in Los Angeles, 0–23. */
+function pacificHour(d: DateLike): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    hourCycle: "h23",
+    timeZone: PACIFIC,
+  }).formatToParts(toDate(d));
+  return Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+}
+
+/**
+ * When this is, said the way a person would say it.
+ *
+ * "Sunday, September 20" tells you the date but not whether to leave the
+ * house. Nightlife is decided on a horizon of hours, so the top of an event
+ * page should answer "is this now?" before it answers "what date is this?".
+ *
+ * Deliberately blunt at the edges: an event underway says so, and one that has
+ * finished says so rather than showing a stale countdown next to a live Get
+ * Tickets button.
+ *
+ * `endsAt` is optional because most events do not set one; without it an event
+ * is treated as over four hours after it starts, which is a normal night out
+ * and errs toward still showing "happening now" rather than hiding a live show.
+ */
+export function relativeEventTime(
+  startsAt: DateLike,
+  endsAt: DateLike | null,
+  now: DateLike = new Date(),
+): string {
+  const start = toDate(startsAt).getTime();
+  const nowMs = toDate(now).getTime();
+  const end = endsAt ? toDate(endsAt).getTime() : start + 4 * 3_600_000;
+
+  if (nowMs >= end) return "Ended";
+  if (nowMs >= start) return "Happening now";
+
+  const days = calendarDaysBetween(pacificToday(now), pacificToday(startsAt));
+
+  if (days <= 0) {
+    // Same calendar day. Under three hours, count down — that is the window
+    // where the number changes someone's plans.
+    const hours = Math.floor((start - nowMs) / 3_600_000);
+    if (hours < 1) return `Starts in ${Math.max(1, Math.round((start - nowMs) / 60_000))} min`;
+    if (hours < 3) return `Starts in ${hours} hr`;
+    return pacificHour(startsAt) >= 17 ? "Tonight" : "Today";
+  }
+  if (days === 1) return "Tomorrow";
+  if (days < 7) return `In ${days} days`;
+  if (days < 14) return "Next week";
+  if (days < 60) return `In ${Math.round(days / 7)} weeks`;
+  return `In ${Math.round(days / 30)} months`;
+}

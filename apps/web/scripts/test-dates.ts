@@ -11,9 +11,11 @@
  */
 import {
   addCalendarDays,
+  calendarDaysBetween,
   pacificDayRange,
   pacificToday,
   pacificWeekendRange,
+  relativeEventTime,
 } from "@dtlahappening/core";
 
 let failures = 0;
@@ -81,6 +83,46 @@ console.log("\nTonight preset — same day used as both bounds");
 const today = pacificToday(new Date("2026-10-02T03:30:00Z"));
 const tonight = pacificDayRange(today);
 check("covers a full Pacific day", tonight !== null && tonight.endExclusive.getTime() - tonight.start.getTime() === 24 * 3600 * 1000);
+
+console.log("\ncalendarDaysBetween");
+eq("same day", calendarDaysBetween("2026-10-01", "2026-10-01"), 0);
+eq("across the DST fallback", calendarDaysBetween("2026-10-31", "2026-11-02"), 2);
+eq("backwards", calendarDaysBetween("2026-10-05", "2026-10-01"), -4);
+
+console.log("\nrelativeEventTime — Art Night doors 6pm Pacific, 1 Oct 2026");
+// 6pm PDT on 1 Oct is 01:00 UTC on 2 Oct.
+const start = "2026-10-02T01:00:00Z";
+const at = (iso: string) => relativeEventTime(start, null, new Date(iso));
+
+eq("an hour in", at("2026-10-02T02:00:00Z"), "Happening now");
+eq("five hours in, no endsAt", at("2026-10-02T06:00:00Z"), "Ended");
+eq("30 minutes out", at("2026-10-02T00:30:00Z"), "Starts in 30 min");
+eq("two hours out", at("2026-10-01T23:00:00Z"), "Starts in 2 hr");
+eq("same morning", at("2026-10-01T17:00:00Z"), "Tonight");
+eq("the day before", at("2026-09-30T19:00:00Z"), "Tomorrow");
+eq("three days out", at("2026-09-28T19:00:00Z"), "In 3 days");
+eq("ten days out", at("2026-09-21T19:00:00Z"), "Next week");
+eq("three weeks out", at("2026-09-10T19:00:00Z"), "In 3 weeks");
+
+// A 2pm event on the same day is "Today", not "Tonight".
+eq(
+  "an afternoon event is not Tonight",
+  relativeEventTime("2026-10-01T21:00:00Z", null, new Date("2026-10-01T17:00:00Z")),
+  "Today",
+);
+
+// An explicit end time wins over the four-hour assumption.
+eq(
+  "endsAt is respected",
+  relativeEventTime(start, "2026-10-02T03:00:00Z", new Date("2026-10-02T03:30:00Z")),
+  "Ended",
+);
+check(
+  "a long event is still live past four hours",
+  relativeEventTime(start, "2026-10-02T09:00:00Z", new Date("2026-10-02T06:00:00Z")) ===
+    "Happening now",
+  "an endsAt after the default window keeps it live",
+);
 
 console.log(failures === 0 ? "\nAll date checks passed.\n" : `\n${failures} FAILED\n`);
 process.exit(failures === 0 ? 0 : 1);
