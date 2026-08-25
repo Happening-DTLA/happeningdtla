@@ -100,12 +100,15 @@ export function EventMap({
   onSelectVenue,
   showUserLocation,
   userCoords,
+  region = DTLA_REGION,
 }: {
   pins: VenuePin[];
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string | null) => void;
   showUserLocation: boolean;
   userCoords: Coords | null;
+  /** Opening view. Defaults to the neighbourhood; a single venue passes its own. */
+  region?: Region;
 }) {
   const mapRef = useRef<MapView>(null);
 
@@ -120,7 +123,7 @@ export function EventMap({
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
-        initialRegion={DTLA_REGION}
+        initialRegion={region}
         // No `provider` on purpose. iOS then uses Apple Maps, which needs no
         // API key and no billing account; forcing PROVIDER_GOOGLE would make a
         // Google Maps key a prerequisite for the app to run at all.

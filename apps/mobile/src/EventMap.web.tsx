@@ -34,6 +34,7 @@ export function EventMap({
   onSelectVenue: (venueId: string | null) => void;
   showUserLocation: boolean;
   userCoords: Coords | null;
+  region?: typeof DTLA_REGION;
 }) {
   return (
     <ScrollView
