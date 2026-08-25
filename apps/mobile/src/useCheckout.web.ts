@@ -28,10 +28,10 @@ export type CheckoutArgs = {
  * seats against a purchase this platform cannot finish, and held seats are
  * inventory nobody else can buy until the hold lapses.
  *
- * Note that `/e/[slug]` on apps/web does not sell tickets yet either — it
- * prices them and says so (see docs/ROADMAP.md, "Guest checkout"). This still
- * beats a dead button: it is the one page a browser buyer belongs on, and when
- * web checkout lands it starts working here with no change to this file.
+ * `/e/[slug]` on apps/web now sells tickets, so this lands the buyer somewhere
+ * that actually completes a purchase — no change to this file was needed when
+ * web checkout shipped, which was the point of sending them to the site rather
+ * than failing here.
  *
  * Never use `Alert` as the fallback. react-native-web ships `Alert.alert` as
  * an empty function, so it fails silently — the exact behaviour this is

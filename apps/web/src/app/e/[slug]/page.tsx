@@ -103,13 +103,27 @@ export default async function EventPage({ params }: PageProps<"/e/[slug]">) {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={left === 0}
-                  className="mt-4 w-full rounded-lg bg-accent px-4 py-3 font-semibold text-accent-ink transition-opacity disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-text-muted"
-                >
-                  {left === 0 ? "Sold out" : free ? "RSVP" : "Get tickets"}
-                </button>
+                {free ? (
+                  /* No RSVP flow exists, and /api/checkout refuses a zero-total
+                     order, so a button here would be a dead end. */
+                  <div className="mt-4 rounded-lg bg-surface-2 px-4 py-3 text-center">
+                    <p className="font-semibold">Just show up</p>
+                    <p className="mt-0.5 text-xs text-text-muted">
+                      Free entry — no ticket needed
+                    </p>
+                  </div>
+                ) : left === 0 ? (
+                  <div className="mt-4 w-full rounded-lg bg-surface-2 px-4 py-3 text-center font-semibold text-text-muted">
+                    Sold out
+                  </div>
+                ) : (
+                  <Link
+                    href={`/e/${event.slug}/buy?tier=${tier.id}`}
+                    className="mt-4 block w-full rounded-lg bg-accent px-4 py-3 text-center font-semibold text-accent-ink"
+                  >
+                    Get tickets
+                  </Link>
+                )}
 
                 {left > 0 && left < 25 && (
                   <p className="mt-2 text-center text-xs text-text-muted">
@@ -120,9 +134,6 @@ export default async function EventPage({ params }: PageProps<"/e/[slug]">) {
             );
           })}
         </ul>
-        <p className="mt-4 text-center text-xs text-text-muted">
-          Checkout is not wired up yet — see docs/ROADMAP.md
-        </p>
       </section>
     </article>
   );
