@@ -567,3 +567,29 @@ model VenueCheckIn {
   @@index([nightId])
   @@index([venueId])
 }
+
+// ---------------------------------------------------------------------------
+// Abuse control
+// ---------------------------------------------------------------------------
+
+/// Fixed-window request counters. See `src/lib/rate-limit.ts`.
+///
+/// In Postgres rather than memory on purpose. An in-process counter protects
+/// nothing the moment the app runs as more than one instance — every serverless
+/// invocation would start its own count — and this is the table that stops one
+/// script holding every seat of an event.
+///
+/// INVARIANT: the window start is part of the KEY, never a column. A new window
+/// is therefore a new row, so a counter from a previous window can never be
+/// incremented by mistake, and the increment stays a single atomic upsert with
+/// no read-then-write.
+model RateLimit {
+  /// "<bucket>:<subject>:<window start, epoch seconds>"
+  key   String @id
+  count Int    @default(1)
+
+  /// Rows past this are dead weight and safe to delete in bulk.
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}

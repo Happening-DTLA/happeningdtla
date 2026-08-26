@@ -85,7 +85,7 @@ not them.
 
 ## Will break under load
 
-### 7. No rate limiting anywhere — the most exploitable gap
+### 7. No rate limiting anywhere — FIXED 25 Aug 2026
 
 `POST /api/checkout` is unauthenticated by design, and each call writes an
 order and creates a Stripe PaymentIntent. Nothing limits how often anyone can
@@ -98,7 +98,25 @@ no payment, no cost to the attacker.
 
 It is also a Stripe bill: every call creates a PaymentIntent.
 
-This is the single highest-value fix in this document.
+**Now closed.** `lib/rate-limit.ts` counts requests in Postgres — not in
+memory, which protects nothing once the app runs as more than one instance.
+Checkout is limited per buyer (address + email, tight) and per address
+(loose, because a venue's wifi is one NAT and a tight per-address limit would
+turn away real buyers standing at the door). Door pairing is limited too,
+since a correct guess admits people free.
+
+The counter is a single atomic upsert with the window in the key, so there is
+no read-then-write and no stale window to reset. `test:ratelimit` fires 40
+simultaneous requests at a limit of 10 and asserts exactly 10 pass — a
+read-then-write counter fails that.
+
+It fails OPEN: if the counter itself errors the request proceeds, per the house
+rule that turning away a paying customer is the worst thing this system can do.
+
+**What it does not do.** Limiting by address raises the cost of holding
+inventory and stops the trivial attack. It does not stop someone willing to
+rotate addresses. The complete fix is a cap on concurrently held seats per
+identity, which guest checkout has no way to establish today.
 
 ### 8. Failure is silent
 
@@ -172,8 +190,7 @@ Postgres before the night** — that is still outstanding.
 
 Sequenced by what unblocks the most, given five weeks:
 
-1. **Rate limit `/api/checkout`** — hours of work, closes the one gap someone
-   could actually use against you on the night.
+1. ~~**Rate limit `/api/checkout`**~~ — done, 25 Aug.
 2. **Verify the Resend domain** — external dependency, start it today.
 3. **Event creation UI** — the largest build, and nothing sells without it.
 4. **Deploy** — hosted Postgres, real webhook endpoint, real origin.

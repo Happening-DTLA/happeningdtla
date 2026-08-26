@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { claimDoorSession } from "@/lib/door";
 import { ok, fail, withErrorBoundary } from "@/lib/api-response";
+import { DOOR_PAIR_RULES, clientIp, enforceRateLimit } from "@/lib/rate-limit";
 
 const Body = z.object({
   pairingCode: z.string().trim().min(4).max(12),
@@ -9,6 +10,11 @@ const Body = z.object({
 
 /** Door staff action: trade the spoken code for this device's token. */
 async function handlePOST(request: Request): Promise<Response> {
+  // A correct guess admits people through a door for free, so guesses are
+  // counted. Loose enough that staff can mistype on a cold sidewalk.
+  const limited = await enforceRateLimit("door:pair", clientIp(request), DOOR_PAIR_RULES);
+  if (limited) return limited;
+
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return fail(400, "invalid_request", "Enter the pairing code.");
 

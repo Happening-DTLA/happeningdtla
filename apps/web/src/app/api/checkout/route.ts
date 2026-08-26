@@ -4,6 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { ok, fail } from "@/lib/api-response";
 import {
+  CHECKOUT_PER_BUYER,
+  CHECKOUT_PER_IP,
+  clientIp,
+  enforceRateLimit,
+} from "@/lib/rate-limit";
+import {
   CheckoutError,
   createPendingOrder,
   releaseExpiredHolds,
@@ -24,6 +30,12 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
+  // Per address first, before the body is even read: a flood of malformed
+  // requests should be counted too, and this check is cheaper than parsing.
+  const ip = clientIp(request);
+  const perAddress = await enforceRateLimit("checkout:ip", ip, CHECKOUT_PER_IP);
+  if (perAddress) return perAddress;
+
   let body: unknown;
   try {
     body = await request.json();
@@ -36,6 +48,16 @@ export async function POST(request: Request) {
     return fail(400, "invalid_request", parsed.error.issues[0]?.message ?? "Invalid request.");
   }
   const input = parsed.data;
+
+  // Counted per buyer, before anything is held or charged. Every call past
+  // this point reserves inventory and creates a Stripe PaymentIntent, which is
+  // what makes an unlimited endpoint expensive in seats and in Stripe bill.
+  const perBuyer = await enforceRateLimit(
+    "checkout:buyer",
+    ip ? `${ip}|${input.buyerEmail.toLowerCase()}` : null,
+    CHECKOUT_PER_BUYER,
+  );
+  if (perBuyer) return perBuyer;
 
   // Free up seats from abandoned checkouts first, so an event that only looks
   // sold out doesn't stay that way until the next scheduled sweep.
