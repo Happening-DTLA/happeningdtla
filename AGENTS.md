@@ -81,6 +81,20 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   not tested. The map deliberately sets no `provider`, so iOS uses Apple Maps
   and needs no API key; a standalone **Android** build uses Google Maps and will
   need a key in `app.json`.
+- **Reanimated must match Expo Go's compiled copy EXACTLY, and so must
+  `react-native-worklets`.** Reanimated throws "Mismatch between JavaScript
+  part and native part" when they differ. Two traps here: `expo install
+  react-native-reanimated` does NOT install `react-native-worklets`, which
+  Reanimated 4 needs as a separate native peer; and a floating `~4.1.1`
+  resolves to 4.1.7, whose worklets range `0.5 - 0.8` hoists 0.8.3 to the
+  workspace root — so the hoisted Reanimated loads 0.8.3 while the app loads
+  the correct 0.5.1 nested under apps/mobile, and every screen red-boxes. Both
+  are pinned to exact versions and both are in metro's `FORCE_SINGLE`. No babel
+  config is needed: `babel-preset-expo` adds `react-native-worklets/plugin`
+  automatically when the package is installed (verified by reading the preset).
+- **After changing any native dependency, restart Metro with `--clear`.** The
+  transform cache survives an npm install and will happily keep serving the
+  previous version's code.
 - **`expo install --fix` can add a bogus config plugin.** It added
   `expo-status-bar` to `app.json` plugins, which is not a config plugin and
   makes the dev server refuse to start. Keep that array to `["expo-router"]`.

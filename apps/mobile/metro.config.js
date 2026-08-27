@@ -35,7 +35,17 @@ config.resolver.nodeModulesPaths = [
 // resolveRequest intercepts every request regardless of who is asking, which
 // is the only place that can guarantee a single instance. Pinned to the
 // version Expo expects rather than the newer root copy.
-const FORCE_SINGLE = ["react", "react-dom"];
+//
+// react-native-worklets is here for a different reason with the same shape.
+// Expo Go ships ONE compiled native copy of it, and Reanimated throws
+// "Mismatch between JavaScript part and native part" the moment the JS it
+// loads is a different version. A floating `~4.1.1` on Reanimated resolved to
+// 4.1.7, which depends on worklets `0.5 - 0.8` and hoisted 0.8.3 to the
+// workspace root — so Reanimated, itself hoisted, resolved 0.8.3 while the app
+// resolved the correct 0.5.1 nested under apps/mobile. Two copies, one native
+// module, every screen a red box. Both are pinned to exact versions in
+// package.json; this is the belt to that braces.
+const FORCE_SINGLE = ["react", "react-dom", "react-native-reanimated", "react-native-worklets"];
 
 // Subpaths count. `react/jsx-runtime` and `react-dom/client` are their own
 // resolution requests, so matching only the bare name pins the package and
