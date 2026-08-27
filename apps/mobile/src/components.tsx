@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import type { ApiEventSummary, ApiNight, EventCategory } from "@dtlahappening/core";
 import {
@@ -10,7 +11,7 @@ import {
   formatTimeRange,
   shortNightName,
 } from "@dtlahappening/core";
-import { theme, space } from "./theme";
+import { theme, space, radius, type } from "./theme";
 import { useLikes } from "./likes-store";
 
 export function Loading() {
@@ -25,22 +26,24 @@ export function Loading() {
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.xl, gap: space.lg }}>
-      <Text style={{ color: theme.text, fontSize: 16, textAlign: "center", lineHeight: 23 }}>
-        {message}
-      </Text>
+      <Text style={[type.body, { color: theme.text, textAlign: "center" }]}>{message}</Text>
       <Pressable
         onPress={onRetry}
         accessibilityRole="button"
         style={({ pressed }) => ({
-          backgroundColor: pressed ? theme.surface2 : theme.surface,
-          borderColor: theme.border,
+          backgroundColor: pressed ? theme.accent : "transparent",
+          borderColor: theme.accent,
           borderWidth: 1,
-          borderRadius: 10,
+          borderRadius: radius.control,
           paddingVertical: space.md,
           paddingHorizontal: space.xl,
         })}
       >
-        <Text style={{ color: theme.accent, fontWeight: "600" }}>Try again</Text>
+        {({ pressed }) => (
+          <Text style={[type.label, { color: pressed ? theme.accentInk : theme.accent }]}>
+            Try again
+          </Text>
+        )}
       </Pressable>
     </View>
   );
@@ -49,32 +52,28 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
 export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <View style={{ alignItems: "center", padding: space.xxl, gap: space.sm }}>
-      <Text style={{ color: theme.text, fontSize: 17, fontWeight: "600", textAlign: "center" }}>
-        {title}
-      </Text>
-      <Text style={{ color: theme.textMuted, fontSize: 14, textAlign: "center", lineHeight: 21 }}>
-        {body}
-      </Text>
+      <Text style={[type.title, { color: theme.text, textAlign: "center" }]}>{title}</Text>
+      <Text style={[type.body, { color: theme.textMuted, textAlign: "center" }]}>{body}</Text>
     </View>
   );
 }
 
+/**
+ * A section marker, set as a printed rule.
+ *
+ * The rule is not decoration — it is what makes a stack of listings read as a
+ * page rather than a feed. Small caps, wide, with the line running to the edge
+ * the way a gig guide sets its headings.
+ */
 export function Label({ children }: { children: React.ReactNode }) {
   return (
-    <Text
-      style={{
-        color: theme.textMuted,
-        fontSize: 11,
-        letterSpacing: 1.4,
-        textTransform: "uppercase",
-      }}
-    >
-      {children}
-    </Text>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+      <Text style={[type.label, { color: theme.accent }]}>{children}</Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: theme.border }} />
+    </View>
   );
 }
 
-/** Horizontal category filter. `null` means "everything". */
 export function CategoryChips({
   categories,
   selected,
@@ -84,27 +83,27 @@ export function CategoryChips({
   selected: EventCategory | null;
   onSelect: (c: EventCategory | null) => void;
 }) {
+  // Pills, against square everything else. The one round shape in the app
+  // marks "this is a control you can flip" and gives the hard blocks something
+  // to be hard against.
   const Chip = ({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) => (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        Haptics.selectionAsync().catch(() => {});
+        onPress();
+      }}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       style={({ pressed }) => ({
-        backgroundColor: active ? theme.accent : pressed ? theme.surface2 : theme.surface,
+        backgroundColor: active ? theme.accent : pressed ? theme.surface2 : "transparent",
         borderColor: active ? theme.accent : theme.border,
         borderWidth: 1,
-        borderRadius: 999,
-        paddingVertical: 8,
+        borderRadius: radius.pill,
+        paddingVertical: 7,
         paddingHorizontal: 14,
       })}
     >
-      <Text
-        style={{
-          color: active ? theme.accentInk : theme.text,
-          fontSize: 13,
-          fontWeight: active ? "700" : "500",
-        }}
-      >
+      <Text style={[type.label, { color: active ? theme.accentInk : theme.textMuted }]}>
         {label}
       </Text>
     </Pressable>
@@ -130,86 +129,82 @@ export function CategoryChips({
 }
 
 /**
- * The city-wide night, presented as one destination.
+ * The city-wide night, as a poster.
  *
- * Art Night is a crawl — a dozen events across half a dozen venues in a single
- * evening. Listed flat among everything else it reads as a dozen unrelated
- * shows, which is exactly the model Eventbrite is stuck with and the thing
- * this product exists to do better. One card, one night, one way in.
+ * This is the one place in the app that shouts, and everything else is quiet so
+ * that it can. The accent stops being a thin highlight and becomes what it is
+ * on a real flyer — a second ink, laid down in a solid block with the type
+ * knocked out of it.
  *
- * The eyebrow says "city-wide night" rather than "first Thursday": the cadence
- * is a convention, not a guarantee, and a night moved for a holiday would make
- * the label a lie. The date underneath is the authority.
+ * Art Night is a crawl: a dozen events across half a dozen venues in one
+ * evening. Listed flat it reads as a dozen unrelated shows, which is the model
+ * Eventbrite is stuck with and the thing this product exists to do better.
  */
 export function NightCard({ night }: { night: ApiNight }) {
   const router = useRouter();
   const venueCount = new Set(night.events.map((e) => e.venue.id)).size;
   const neighborhoods = [
     ...new Set(
-      night.events
-        .map((e) => e.venue.neighborhood)
-        .filter((n): n is string => Boolean(n)),
+      night.events.map((e) => e.venue.neighborhood).filter((n): n is string => Boolean(n)),
     ),
   ];
 
   return (
     <Pressable
-      onPress={() => router.push(`/n/${night.slug}`)}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        router.push(`/n/${night.slug}`);
+      }}
       accessibilityRole="button"
       accessibilityLabel={`${shortNightName(night.name)}, ${night.events.length} events across ${venueCount} venues`}
-      style={({ pressed }) => ({
-        backgroundColor: pressed ? theme.surface2 : theme.surface,
-        borderColor: theme.accent,
-        borderWidth: 1,
-        borderRadius: 16,
-        padding: space.xl,
-        gap: space.sm,
-      })}
+      style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-        <View
-          style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accent }}
-        />
-        <Text
-          style={{
-            color: theme.accent,
-            fontSize: 11,
-            letterSpacing: 1.6,
-            textTransform: "uppercase",
-            fontWeight: "700",
-          }}
-        >
-          City-wide night
+      {/* The masthead band: solid ink, type knocked out. */}
+      <View
+        style={{
+          backgroundColor: theme.accent,
+          paddingHorizontal: space.lg,
+          paddingVertical: space.sm,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text style={[type.label, { color: theme.accentInk }]}>City-wide night</Text>
+        <Text style={[type.label, { color: theme.accentInk }]}>
+          {night.events.length} events
         </Text>
       </View>
 
-      <Text style={{ color: theme.text, fontSize: 30, fontWeight: "700", lineHeight: 34 }}>
-        {shortNightName(night.name)}
-      </Text>
-      <Text style={{ color: theme.text, fontSize: 16, fontWeight: "500" }}>
-        {formatCalendarDate(night.date)}
-      </Text>
-
-      {night.events.length > 0 ? (
-        <Text style={{ color: theme.textMuted, fontSize: 14 }}>
-          {night.events.length} {night.events.length === 1 ? "event" : "events"} across{" "}
-          {venueCount} {venueCount === 1 ? "venue" : "venues"}
-        </Text>
-      ) : null}
-
-      {neighborhoods.length > 0 ? (
-        <Text style={{ color: theme.textMuted, fontSize: 13 }} numberOfLines={1}>
-          {neighborhoods.join(" · ")}
-        </Text>
-      ) : null}
-
       <View
-        style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: space.xs }}
+        style={{
+          borderColor: theme.accent,
+          borderWidth: 1,
+          borderTopWidth: 0,
+          paddingHorizontal: space.lg,
+          paddingTop: space.lg,
+          paddingBottom: space.md,
+          gap: space.sm,
+        }}
       >
-        <Text style={{ color: theme.accent, fontSize: 14, fontWeight: "600" }}>
-          See the whole night
-        </Text>
-        <Ionicons name="arrow-forward" size={15} color={theme.accent} />
+        <Text style={[type.poster, { color: theme.text }]}>{shortNightName(night.name)}</Text>
+
+        <View style={{ height: 1, backgroundColor: theme.border }} />
+
+        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: space.md }}>
+          <Text style={[type.meta, { color: theme.text, flex: 1 }]}>
+            {formatCalendarDate(night.date)}
+          </Text>
+          <Text style={[type.meta, { color: theme.textMuted }]}>
+            {venueCount} {venueCount === 1 ? "venue" : "venues"}
+          </Text>
+        </View>
+
+        {neighborhoods.length > 0 ? (
+          <Text style={[type.label, { color: theme.textMuted }]} numberOfLines={1}>
+            {neighborhoods.join(" · ")}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -222,6 +217,9 @@ export function NightCard({ night }: { night: ApiNight }) {
  * touch, so tapping the heart saves the event rather than opening it — but it
  * needs real hitSlop, because the target is small and it sits next to a
  * control that navigates away.
+ *
+ * The haptic is the point of the interaction as much as the fill is: saving
+ * something is the one moment in browsing where the phone should answer back.
  */
 export function LikeButton({
   event,
@@ -234,7 +232,14 @@ export function LikeButton({
   const liked = isLiked(event.id);
   return (
     <Pressable
-      onPress={() => toggle(event)}
+      onPress={() => {
+        Haptics.impactAsync(
+          liked ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium,
+        ).catch(() => {
+          /* no taptic engine, or a simulator — the fill is still feedback */
+        });
+        toggle(event);
+      }}
       accessibilityRole="button"
       accessibilityState={{ selected: liked }}
       accessibilityLabel={liked ? `Remove ${event.title} from saved` : `Save ${event.title}`}
@@ -250,11 +255,12 @@ export function LikeButton({
 }
 
 /**
- * The event card, shared by every list in the app.
+ * One listing in the guide.
  *
- * Navigates with router.push rather than <Link asChild> — asChild clones the
- * child into an <a> and drops the Pressable's style function, which renders the
- * card with no background, border or row layout.
+ * Set as a ruled row rather than a floating card. A stack of rounded cards on a
+ * dark ground is the default shape of every events app; hairline rules and a
+ * hard left edge are how a printed gig guide sets the same information, and the
+ * type does the work that a border was doing before.
  */
 export function EventCard({
   event,
@@ -269,44 +275,43 @@ export function EventCard({
       onPress={() => router.push(`/e/${event.slug}`)}
       accessibilityRole="button"
       style={({ pressed }) => ({
-        backgroundColor: pressed ? theme.surface2 : theme.surface,
-        borderColor: theme.border,
-        borderWidth: 1,
-        borderRadius: 12,
-        padding: space.lg,
+        backgroundColor: pressed ? theme.surface : "transparent",
+        borderTopColor: theme.border,
+        borderTopWidth: 1,
+        paddingVertical: space.lg,
+        paddingHorizontal: space.lg,
         flexDirection: "row",
         justifyContent: "space-between",
         gap: space.lg,
       })}
     >
-      <View style={{ flex: 1, gap: 3 }}>
+      <View style={{ flex: 1, gap: 5 }}>
         {showDate ? (
-          <Text style={{ color: theme.accent, fontSize: 11, fontWeight: "700", letterSpacing: 0.6 }}>
-            {formatDate(event.startsAt).toUpperCase()}
-          </Text>
+          <Text style={[type.label, { color: theme.accent }]}>{formatDate(event.startsAt)}</Text>
         ) : null}
-        <Text style={{ color: theme.text, fontSize: 16, fontWeight: "600" }}>{event.title}</Text>
-        <Text style={{ color: theme.textMuted, fontSize: 14 }} numberOfLines={1}>
+        <Text style={[type.title, { color: theme.text }]}>{event.title}</Text>
+        <Text style={[type.meta, { color: theme.text }]} numberOfLines={1}>
           {event.venue.name}
         </Text>
-        <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+        <Text style={[type.meta, { color: theme.textMuted }]}>
           {formatTimeRange(event.startsAt, event.endsAt)}
           {event.minAge ? ` · ${event.minAge}+` : ""}
         </Text>
       </View>
-      <View style={{ alignItems: "flex-end", justifyContent: "space-between", gap: space.sm }}>
+
+      <View style={{ alignItems: "flex-end", justifyContent: "space-between", gap: space.md }}>
         <View style={{ alignItems: "flex-end" }}>
           {event.soldOut ? (
-            <Text style={{ color: theme.danger, fontSize: 13 }}>Sold out</Text>
+            <Text style={[type.label, { color: theme.danger }]}>Sold out</Text>
           ) : event.isFree ? (
-            <Text style={{ color: theme.accent, fontSize: 15, fontWeight: "700" }}>Free</Text>
+            <Text style={[type.numeral, { color: theme.accent }]}>FREE</Text>
           ) : (
             <>
-              <Text style={{ color: theme.accent, fontSize: 15, fontWeight: "700" }}>
+              <Text style={[type.numeral, { color: theme.accent }]}>
                 {formatCents(event.fromAllInCents ?? 0)}
               </Text>
               {/* All-in on the first surface — no fee reveal at checkout. */}
-              <Text style={{ color: theme.textMuted, fontSize: 10 }}>all-in</Text>
+              <Text style={[type.label, { color: theme.textMuted, fontSize: 9 }]}>all-in</Text>
             </>
           )}
         </View>

@@ -1,7 +1,7 @@
 import { ScrollView, Text, View } from "react-native";
 import { EmptyState, EventCard, Loading } from "@/components";
 import { useLikes } from "@/likes-store";
-import { theme, space } from "@/theme";
+import { theme, space, type } from "@/theme";
 
 /**
  * Saved events, newest first.
@@ -32,13 +32,14 @@ export default function SavedScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{
-        padding: space.lg,
-        gap: space.sm,
-        paddingBottom: space.xxl,
-      }}
+      contentContainerStyle={{ paddingBottom: space.xxl }}
     >
-      <Text style={{ color: theme.textMuted, fontSize: 12, paddingBottom: space.xs }}>
+      <Text
+        style={[
+          type.meta,
+          { color: theme.textMuted, padding: space.lg, paddingBottom: space.md },
+        ]}
+      >
         Saved on this device. Signing in will carry them across devices.
       </Text>
       {liked.map((l) => (

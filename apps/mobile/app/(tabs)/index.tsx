@@ -83,15 +83,15 @@ export default function ExploreScreen() {
           }
         />
       ) : (
-        <View style={{ marginTop: space.lg, paddingHorizontal: space.lg }}>
-          <View style={{ marginBottom: space.md }}>
+        <View style={{ marginTop: space.lg }}>
+          <View style={{ marginBottom: space.sm, paddingHorizontal: space.lg }}>
             <Label>{night.data ? "Also on in Downtown" : "Coming up in Downtown"}</Label>
           </View>
-          <View style={{ gap: space.md }}>
-            {laterEvents.map((e) => (
-              <EventCard key={e.id} event={e} showDate />
-            ))}
-          </View>
+          {/* No gap: the rows carry their own rules, and a continuous ruled
+              list is the point — spacing them apart turns it back into cards. */}
+          {laterEvents.map((e) => (
+            <EventCard key={e.id} event={e} showDate />
+          ))}
         </View>
       )}
     </ScrollView>

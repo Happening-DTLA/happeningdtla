@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Image,
   Linking,
   Platform,
   Pressable,
@@ -11,6 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import type { ApiTicketType } from "@dtlahappening/core";
 import {
@@ -24,7 +24,7 @@ import {
 } from "@dtlahappening/core";
 import { api, API_BASE_URL } from "@/api";
 import { useAsync } from "@/useAsync";
-import { theme, space } from "@/theme";
+import { theme, space, radius, type } from "@/theme";
 import { ErrorState, EventCard, Label, LikeButton, Loading } from "@/components";
 import { useLikes } from "@/likes-store";
 import { EventMap } from "@/EventMap";
@@ -111,9 +111,17 @@ export default function EventScreen() {
             contained on a dark field rather than cropped to fit a shape. */}
         {event.imageUrl ? (
           <Image
-            source={{ uri: event.imageUrl }}
-            style={{ width: "100%", height: 300, backgroundColor: theme.surface }}
-            resizeMode="contain"
+            source={event.imageUrl}
+            style={{ width: "100%", height: 320, backgroundColor: theme.surface }}
+            // `contain`, not cover. Eventbrite letterboxes a portrait flyer
+            // into a wide hero and slices the edges off — in the reference
+            // recording that removed the doors and show times, so the page
+            // said less than the picture it was displaying.
+            contentFit="contain"
+            // expo-image rather than RN's: it caches to disk between launches,
+            // so a flyer you have already seen is instant on the next open.
+            cachePolicy="memory-disk"
+            transition={220}
             accessibilityIgnoresInvertColors
           />
         ) : null}
@@ -317,11 +325,15 @@ export default function EventScreen() {
             the question a crawl actually raises: what else can I walk to
             tonight, starting with this venue's own room. */}
         {sameVenue.length + elsewhere.length > 0 ? (
-          <Section>
-            <Label>Also on that night</Label>
+          <View style={{ gap: space.md }}>
+            <View style={{ paddingHorizontal: space.lg }}>
+              <Label>Also on that night</Label>
+            </View>
             {sameVenue.length > 0 ? (
-              <View style={{ gap: space.md }}>
-                <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+              <View>
+                <Text
+                  style={[type.label, { color: theme.textMuted, paddingHorizontal: space.lg, paddingBottom: space.sm }]}
+                >
                   Same room, same night
                 </Text>
                 {sameVenue.map((e) => (
@@ -330,8 +342,12 @@ export default function EventScreen() {
               </View>
             ) : null}
             {elsewhere.length > 0 ? (
-              <View style={{ gap: space.md, marginTop: sameVenue.length ? space.md : 0 }}>
-                <Text style={{ color: theme.textMuted, fontSize: 12 }}>Nearby that night</Text>
+              <View style={{ marginTop: sameVenue.length ? space.md : 0 }}>
+                <Text
+                  style={[type.label, { color: theme.textMuted, paddingHorizontal: space.lg, paddingBottom: space.sm }]}
+                >
+                  Nearby that night
+                </Text>
                 {elsewhere.map((e) => (
                   <EventCard key={e.id} event={e} />
                 ))}
@@ -341,14 +357,14 @@ export default function EventScreen() {
               <Pressable
                 onPress={() => router.push(`/n/${event.night!.slug}`)}
                 accessibilityRole="button"
-                style={{ paddingVertical: space.sm }}
+                style={{ paddingVertical: space.sm, paddingHorizontal: space.lg }}
               >
-                <Text style={{ color: theme.accent, fontSize: 14, fontWeight: "600" }}>
+                <Text style={[type.label, { color: theme.accent }]}>
                   See the whole night ›
                 </Text>
               </Pressable>
             ) : null}
-          </Section>
+          </View>
         ) : null}
       </ScrollView>
 

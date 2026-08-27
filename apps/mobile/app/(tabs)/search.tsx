@@ -5,7 +5,7 @@ import type { EventCategory } from "@dtlahappening/core";
 import { EVENT_CATEGORIES } from "@dtlahappening/core";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
-import { theme, space } from "@/theme";
+import { theme, space, type } from "@/theme";
 import { CategoryChips, EmptyState, ErrorState, EventCard, Loading } from "@/components";
 
 export default function SearchScreen() {
@@ -99,10 +99,12 @@ export default function SearchScreen() {
         />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: space.lg, paddingTop: space.sm, gap: space.md, paddingBottom: space.xxl * 2 }}
+          contentContainerStyle={{ paddingTop: space.sm, paddingBottom: space.xxl * 2 }}
           keyboardDismissMode="on-drag"
         >
-          <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+          <Text
+            style={[type.label, { color: theme.textMuted, paddingHorizontal: space.lg, paddingBottom: space.sm }]}
+          >
             {data.total} {data.total === 1 ? "event" : "events"}
           </Text>
           {data.events.map((e) => (

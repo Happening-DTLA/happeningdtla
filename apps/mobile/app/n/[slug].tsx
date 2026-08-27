@@ -101,15 +101,13 @@ export default function NightScreen() {
         />
       ) : (
         [...byNeighborhood.entries()].map(([neighborhood, list]) => (
-          <View key={neighborhood} style={{ marginTop: space.lg, paddingHorizontal: space.lg }}>
-            <View style={{ marginBottom: space.md }}>
+          <View key={neighborhood} style={{ marginTop: space.lg }}>
+            <View style={{ marginBottom: space.sm, paddingHorizontal: space.lg }}>
               <Label>{neighborhood}</Label>
             </View>
-            <View style={{ gap: space.md }}>
-              {list.map((e) => (
-                <EventCard key={e.id} event={e} />
-              ))}
-            </View>
+            {list.map((e) => (
+              <EventCard key={e.id} event={e} />
+            ))}
           </View>
         ))
       )}
