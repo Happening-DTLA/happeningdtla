@@ -89,7 +89,17 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   resolves to 4.1.7, whose worklets range `0.5 - 0.8` hoists 0.8.3 to the
   workspace root — so the hoisted Reanimated loads 0.8.3 while the app loads
   the correct 0.5.1 nested under apps/mobile, and every screen red-boxes. Both
-  are pinned to exact versions and both are in metro's `FORCE_SINGLE`.
+  are pinned to exact versions, which nests them under apps/mobile and leaves
+  no second copy to collide with.
+- **Never put Reanimated or worklets in metro's `FORCE_SINGLE`.** It looks like
+  the right fix for a duplicate copy and it breaks the app silently. Both ship
+  two entry points: `main` is prebuilt output, `react-native` is the SOURCE.
+  Metro honours `react-native` and loads the source so the babel plugin can
+  compile the worklets inside it; `require.resolve` honours `main` and returns
+  the prebuilt build, which was compiled without that plugin — so Reanimated's
+  own internals arrive as plain functions and the first import dies with
+  "[Worklets] Failed to create a worklet". The tell is the bundle: forced
+  prebuilt had one `__workletHash`, correct resolution has four.
 - **The worklets babel plugin must be declared explicitly here — auto-detection
   does not survive this monorepo.** `babel-preset-expo` does add
   `react-native-worklets/plugin` by itself, but it detects the package with a
