@@ -89,9 +89,18 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   resolves to 4.1.7, whose worklets range `0.5 - 0.8` hoists 0.8.3 to the
   workspace root — so the hoisted Reanimated loads 0.8.3 while the app loads
   the correct 0.5.1 nested under apps/mobile, and every screen red-boxes. Both
-  are pinned to exact versions and both are in metro's `FORCE_SINGLE`. No babel
-  config is needed: `babel-preset-expo` adds `react-native-worklets/plugin`
-  automatically when the package is installed (verified by reading the preset).
+  are pinned to exact versions and both are in metro's `FORCE_SINGLE`.
+- **The worklets babel plugin must be declared explicitly here — auto-detection
+  does not survive this monorepo.** `babel-preset-expo` does add
+  `react-native-worklets/plugin` by itself, but it detects the package with a
+  bare `require.resolve`, which resolves from the PRESET's own location
+  (`node_modules/expo/node_modules/babel-preset-expo`). Exact pinning nests
+  worklets under `apps/mobile`, which is not on that lookup path, so the preset
+  concludes it is not installed and silently omits the plugin. There is no
+  build error: `expo export` succeeds, and the app dies on a phone with
+  "[Worklets] Failed to create a worklet" on the first Reanimated import. Hence
+  `apps/mobile/babel.config.js`, and `babel-preset-expo` as a devDependency
+  there so the config can name it. Keep the worklets plugin LAST.
 - **After changing any native dependency, restart Metro with `--clear`.** The
   transform cache survives an npm install and will happily keep serving the
   previous version's code.
