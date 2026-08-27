@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import QRCode from "react-native-qrcode-svg";
 import type { ApiOrder } from "@dtlahappening/core";
 import { formatDate, formatTicketCode, formatTime } from "@dtlahappening/core";
 import { api } from "@/api";
 import { loadOrders } from "@/orders-store";
+import * as Haptics from "expo-haptics";
 import { theme, space } from "@/theme";
 import { Loading } from "@/components";
+import { Confetti } from "@/Confetti";
 
 /**
  * The ticket wallet.
@@ -20,6 +22,11 @@ import { Loading } from "@/components";
 export default function TicketsScreen() {
   const [orders, setOrders] = useState<ApiOrder[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const { celebrate } = useLocalSearchParams<{ celebrate?: string }>();
+  const [celebrating, setCelebrating] = useState(false);
+  // A ref, not state: the tab is remounted on every visit, and a purchase
+  // should be celebrated once rather than every time someone opens the wallet.
+  const celebrated = useRef(false);
 
   const refresh = useCallback(async () => {
     const stored = await loadOrders();
@@ -51,9 +58,21 @@ export default function TicketsScreen() {
     }, [refresh]),
   );
 
-  if (loading && orders === null) return <Loading />;
-
   const paid = (orders ?? []).filter((o) => o.status === "PAID");
+
+  // Fires once, and only once there is a ticket on screen to celebrate.
+  // Arriving here with nothing rendered yet would throw paper at an empty
+  // screen, which reads as a glitch rather than a moment.
+  useEffect(() => {
+    if (celebrate !== "1" || celebrated.current || paid.length === 0) return;
+    celebrated.current = true;
+    setCelebrating(true);
+    // The haptic is the half of this that lands even in a pocket, and the one
+    // the system will still deliver when motion is reduced.
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }, [celebrate, paid.length]);
+
+  if (loading && orders === null) return <Loading />;
 
   if (paid.length === 0) {
     return (
@@ -79,6 +98,7 @@ export default function TicketsScreen() {
   }
 
   return (
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
       contentContainerStyle={{ padding: space.lg, gap: space.xl, paddingBottom: space.xxl * 2 }}
@@ -136,5 +156,7 @@ export default function TicketsScreen() {
         </View>
       ))}
     </ScrollView>
+    <Confetti active={celebrating} onDone={() => setCelebrating(false)} />
+    </View>
   );
 }

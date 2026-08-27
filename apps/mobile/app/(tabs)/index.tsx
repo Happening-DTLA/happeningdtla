@@ -89,8 +89,8 @@ export default function ExploreScreen() {
           </View>
           {/* No gap: the rows carry their own rules, and a continuous ruled
               list is the point — spacing them apart turns it back into cards. */}
-          {laterEvents.map((e) => (
-            <EventCard key={e.id} event={e} showDate />
+          {laterEvents.map((e, i) => (
+            <EventCard key={e.id} event={e} showDate index={i} />
           ))}
         </View>
       )}

@@ -259,8 +259,13 @@ export default function MapScreen() {
                 <ScrollView
                   contentContainerStyle={{ paddingBottom: space.lg }}
                 >
-                  {selected.events.map((event) => (
-                    <EventCard key={event.id} event={event} showDate={preset === "ALL"} />
+                  {selected.events.map((event, i) => (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      showDate={preset === "ALL"}
+                      index={i}
+                    />
                   ))}
                 </ScrollView>
               </View>

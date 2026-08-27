@@ -336,8 +336,8 @@ export default function EventScreen() {
                 >
                   Same room, same night
                 </Text>
-                {sameVenue.map((e) => (
-                  <EventCard key={e.id} event={e} />
+                {sameVenue.map((e, i) => (
+                  <EventCard key={e.id} event={e} index={i} />
                 ))}
               </View>
             ) : null}
@@ -348,8 +348,8 @@ export default function EventScreen() {
                 >
                   Nearby that night
                 </Text>
-                {elsewhere.map((e) => (
-                  <EventCard key={e.id} event={e} />
+                {elsewhere.map((e, i) => (
+                  <EventCard key={e.id} event={e} index={i} />
                 ))}
               </View>
             ) : null}

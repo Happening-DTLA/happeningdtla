@@ -70,7 +70,7 @@ export function useCheckout() {
         // Paid. Remember the order on this device — with guest checkout the
         // access token is the only way back to these tickets.
         await saveOrder({ orderId: checkout.orderId, accessToken: checkout.accessToken });
-        router.push("/tickets");
+        router.push({ pathname: "/tickets", params: { celebrate: "1" } });
       } catch (err) {
         const message =
           err instanceof ApiRequestError || err instanceof Error

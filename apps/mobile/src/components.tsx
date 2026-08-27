@@ -1,4 +1,12 @@
+import { useEffect } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,7 +20,45 @@ import {
   shortNightName,
 } from "@dtlahappening/core";
 import { theme, space, radius, type } from "./theme";
+import { motion, stagger, useReducedMotion } from "./motion";
 import { useLikes } from "./likes-store";
+
+/**
+ * The entrance every list row uses.
+ *
+ * Ten pixels and a fade, decelerating. Small enough to be felt rather than
+ * watched — the point is that the page settles, not that it performs. The
+ * stagger is capped in motion.ts so the fortieth row does not wait a second
+ * and a half to appear.
+ */
+export function Reveal({
+  index = 0,
+  children,
+}: {
+  index?: number;
+  children: React.ReactNode;
+}) {
+  const reduced = useReducedMotion();
+  const progress = useSharedValue(reduced ? 1 : 0);
+
+  useEffect(() => {
+    if (reduced) {
+      progress.value = 1;
+      return;
+    }
+    progress.value = withDelay(
+      stagger(index),
+      withTiming(1, { duration: motion.enter, easing: motion.easeOut }),
+    );
+  }, [index, reduced, progress]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ translateY: (1 - progress.value) * motion.rise }],
+  }));
+
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
 
 export function Loading() {
   return (
@@ -230,6 +276,10 @@ export function LikeButton({
 }) {
   const { isLiked, toggle } = useLikes();
   const liked = isLiked(event.id);
+  const reduced = useReducedMotion();
+  const scale = useSharedValue(1);
+  const pop = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
   return (
     <Pressable
       onPress={() => {
@@ -238,6 +288,14 @@ export function LikeButton({
         ).catch(() => {
           /* no taptic engine, or a simulator — the fill is still feedback */
         });
+        // Only on the way in. A flourish for removing something is a small lie
+        // about what just happened.
+        if (!liked && !reduced) {
+          scale.value = withSequence(
+            withTiming(1.3, { duration: 110, easing: motion.easeOut }),
+            withTiming(1, { duration: motion.micro, easing: motion.easeOut }),
+          );
+        }
         toggle(event);
       }}
       accessibilityRole="button"
@@ -245,11 +303,13 @@ export function LikeButton({
       accessibilityLabel={liked ? `Remove ${event.title} from saved` : `Save ${event.title}`}
       hitSlop={12}
     >
-      <Ionicons
-        name={liked ? "heart" : "heart-outline"}
-        size={size}
-        color={liked ? theme.accent : theme.textMuted}
-      />
+      <Animated.View style={pop}>
+        <Ionicons
+          name={liked ? "heart" : "heart-outline"}
+          size={size}
+          color={liked ? theme.accent : theme.textMuted}
+        />
+      </Animated.View>
     </Pressable>
   );
 }
@@ -265,12 +325,16 @@ export function LikeButton({
 export function EventCard({
   event,
   showDate = false,
+  index = 0,
 }: {
   event: ApiEventSummary;
   showDate?: boolean;
+  /** Position in its list, for the staggered entrance. */
+  index?: number;
 }) {
   const router = useRouter();
   return (
+    <Reveal index={index}>
     <Pressable
       onPress={() => router.push(`/e/${event.slug}`)}
       accessibilityRole="button"
@@ -318,5 +382,6 @@ export function EventCard({
         <LikeButton event={event} />
       </View>
     </Pressable>
+    </Reveal>
   );
 }

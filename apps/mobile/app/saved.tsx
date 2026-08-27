@@ -42,8 +42,8 @@ export default function SavedScreen() {
       >
         Saved on this device. Signing in will carry them across devices.
       </Text>
-      {liked.map((l) => (
-        <EventCard key={l.event.id} event={l.event} showDate />
+      {liked.map((l, i) => (
+        <EventCard key={l.event.id} event={l.event} showDate index={i} />
       ))}
     </ScrollView>
   );

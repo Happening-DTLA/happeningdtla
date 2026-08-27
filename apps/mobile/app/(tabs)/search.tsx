@@ -107,8 +107,8 @@ export default function SearchScreen() {
           >
             {data.total} {data.total === 1 ? "event" : "events"}
           </Text>
-          {data.events.map((e) => (
-            <EventCard key={e.id} event={e} showDate />
+          {data.events.map((e, i) => (
+            <EventCard key={e.id} event={e} showDate index={i} />
           ))}
         </ScrollView>
       )}
