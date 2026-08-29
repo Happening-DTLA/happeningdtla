@@ -56,13 +56,10 @@ export type MapRoute = { slug: string; color: string; path: number[][][] };
 function VenueMarker({
   pin,
   selected,
-  dimmed,
   onPress,
 }: {
   pin: VenuePin;
   selected: boolean;
-  /** Another corridor is chosen and this pin is not on it. */
-  dimmed: boolean;
   onPress: (venueId: string) => void;
 }) {
   const [tracks, setTracks] = useState(true);
@@ -75,16 +72,17 @@ function VenueMarker({
     setTracks(true);
     const timer = setTimeout(() => setTracks(false), 600);
     return () => clearTimeout(timer);
-  }, [selected, dimmed, pin.events.length, tint]);
+    // Every input the rasterised marker draws from. react-native-maps caches
+    // that image once tracking stops, so anything affecting its appearance has
+    // to be listed here or the map keeps showing a stale one — which is how a
+    // landmark ends up rendered as an anonymous count.
+  }, [selected, tint, pin.venue.isLandmark, pin.venue.name, pin.events.length, pin.events[0]?.category]);
 
   return (
     <Marker
       coordinate={{ latitude: pin.venue.lat, longitude: pin.venue.lng }}
       onPress={() => onPress(pin.venue.id)}
       tracksViewChanges={tracks}
-      // Faded, not hidden. Knowing what else is a block away is the whole
-      // point of a crawl map; removing it would answer a question nobody asked.
-      opacity={dimmed ? 0.35 : 1}
       zIndex={selected ? 3 : pin.venue.isLandmark ? 2 : 1}
       // The default callout is a system bubble that cannot be themed and
       // duplicates the sheet below, so the marker owns the whole interaction.
@@ -242,7 +240,6 @@ export function EventMap({
             key={pin.venue.id}
             pin={pin}
             selected={pin.venue.id === selectedVenueId}
-            dimmed={activeRoute !== null && pin.venue.corridor?.slug !== activeRoute}
             onPress={onSelectVenue}
           />
         ))}

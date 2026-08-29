@@ -151,9 +151,7 @@ export default function MapScreen() {
     [corridor, visiblePins, pins],
   );
 
-  // Every pin is tappable, including ones off the chosen corridor — they are
-  // dimmed, not removed, so selection has to look at all of them.
-  const selected = pins.find((p) => p.venue.id === selectedVenueId) ?? null;
+  const selected = visiblePins.find((p) => p.venue.id === selectedVenueId) ?? null;
 
   // A venue that no longer matches the filters must not keep its sheet open,
   // and a corridor that is not in the new results must not stay selected.
@@ -188,7 +186,7 @@ export default function MapScreen() {
     };
   }, []);
 
-  const eventCount = countEvents(pins);
+  const eventCount = countEvents(visiblePins);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
@@ -274,11 +272,12 @@ export default function MapScreen() {
         ) : (
           <>
             <EventMap
-              // Every pin stays on the map; the corridor filter changes which
-              // street is emphasised, not which venues exist. Hiding the rest
-              // would break the one thing a crawl map is for — seeing what else
-              // is within walking distance of where you are standing.
-              pins={pins}
+              // A chosen corridor really filters: only its venues are drawn,
+              // and clearing it brings every one back. Fading the rest looked
+              // like the same thing and was not — react-native-maps caches a
+              // marker's image once it stops tracking, so a faded pin could
+              // stay faded after the filter was cleared and read as deleted.
+              pins={visiblePins}
               routes={routes}
               focusKey={corridor ?? "all"}
               activeRoute={corridor}
