@@ -124,6 +124,30 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   API host from Expo's `hostUri` so it works on any machine without a
   hardcoded IP.
 
+## Stale dev servers are the first thing to check
+
+This has cost hours twice. Before debugging any error that does not change
+between attempts, check how long the server serving it has been alive:
+
+```bash
+lsof -nP -iTCP:3100 -sTCP:LISTEN     # the API
+lsof -nP -iTCP:8081 -sTCP:LISTEN     # Metro
+ps -o pid,lstart,command -p <pid>
+```
+
+Both servers re-read *source* files but not the things that actually broke:
+
+- **Metro** loads `metro.config.js` and `babel.config.js` once, at startup. A
+  server started before a babel plugin was added keeps transforming new code
+  with the old config, and the app fails on the phone with no build error.
+- **Next dev** hot-reloads route code, but `src/lib/prisma.ts` caches the
+  client on `globalThis` in development. After a migration and
+  `prisma generate`, a running server keeps the OLD client, and every query
+  touching a new model or relation 500s while the code on disk is correct.
+
+An error that is byte-identical across attempts — same message, same log count
+— is evidence about the pipeline, not the code. Restart before diagnosing.
+
 ## Local environment
 
 - Dev server runs on **port 3100** (3000 may be taken by an unrelated project).
