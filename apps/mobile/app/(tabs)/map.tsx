@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +17,7 @@ import { theme, space, radius, type, inkOn } from "@/theme";
 import { CategoryChips, ErrorState, EventCard, Loading } from "@/components";
 import { EventMap, type Coords } from "@/EventMap";
 import { boundsOf, countEvents, groupEventsByVenue, type VenuePin } from "@/venue-pins";
+import { groupByCorridor } from "@/corridors";
 
 type DatePreset = "TONIGHT" | "WEEKEND" | "ART_NIGHT" | "ALL";
 
@@ -68,6 +70,7 @@ export default function MapScreen() {
   const [category, setCategory] = useState<EventCategory | null>(null);
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
   const [corridor, setCorridor] = useState<string | null>(null);
+  const router = useRouter();
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locationGranted, setLocationGranted] = useState(false);
 
@@ -135,6 +138,14 @@ export default function MapScreen() {
         .map((c) => ({ slug: c.slug, color: c.color, path: c.path! })),
     [corridors],
   );
+
+  // Grouped from every event, not from the pins. Most ArtNight venues have no
+  // coordinates yet, so a corridor's real stop count lives here — the map alone
+  // would quietly under-report a ten-stop street as two.
+  const corridorGroups = useMemo(() => groupByCorridor(data?.events ?? []), [data]);
+  const openGroup = corridor
+    ? (corridorGroups.find((g) => g.corridor.slug === corridor) ?? null)
+    : null;
 
   const visiblePins = useMemo(
     () => (corridor ? pins.filter((p) => p.venue.corridor?.slug === corridor) : pins),
@@ -256,6 +267,8 @@ export default function MapScreen() {
                     style={[type.label, { color: active ? inkOn(c.color) : theme.text }]}
                   >
                     {c.name.replace(" Corridor", "")}
+                    {"  "}
+                    {corridorGroups.find((g) => g.corridor.slug === c.slug)?.events.length ?? 0}
                   </Text>
                 </Pressable>
               );
@@ -308,6 +321,90 @@ export default function MapScreen() {
                 <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }}>
                   Try a wider date range or clear the category.
                 </Text>
+              </View>
+            ) : null}
+
+            {/* Picking a corridor lists everything on it, mapped or not.
+                Thirty-seven of the fifty ArtNight venues have no coordinates,
+                and a map that silently drops them tells someone a ten-stop
+                street has two. The pin icon marks the ones that can be found
+                on the map; the rest carry the street they sit on. */}
+            {openGroup && !selected ? (
+              <View
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  maxHeight: "52%",
+                  backgroundColor: theme.bg,
+                  borderTopWidth: 2,
+                  borderColor: openGroup.corridor.color,
+                  paddingBottom: insets.bottom,
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: openGroup.corridor.color,
+                    paddingVertical: space.sm,
+                    paddingHorizontal: space.lg,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: space.md,
+                  }}
+                >
+                  <Text style={[type.heading, { color: inkOn(openGroup.corridor.color), flex: 1 }]}>
+                    {openGroup.corridor.name}
+                  </Text>
+                  <Text style={[type.label, { color: inkOn(openGroup.corridor.color) }]}>
+                    {openGroup.events.length} stops · {openGroup.pinned} mapped
+                  </Text>
+                </View>
+
+                <ScrollView contentContainerStyle={{ paddingBottom: space.lg }}>
+                  {openGroup.events.map((e) => {
+                    const mapped = e.venue.lat !== null && e.venue.lng !== null;
+                    return (
+                      <Pressable
+                        key={e.id}
+                        onPress={() => {
+                          Haptics.selectionAsync().catch(() => {});
+                          // A mapped stop is shown where it is; one without
+                          // coordinates opens its page, which is all we can
+                          // honestly offer.
+                          if (mapped) setSelectedVenueId(e.venue.id);
+                          else router.push(`/e/${e.slug}`);
+                        }}
+                        accessibilityRole="button"
+                        style={({ pressed }) => ({
+                          backgroundColor: pressed ? theme.surface : "transparent",
+                          borderTopColor: theme.border,
+                          borderTopWidth: 1,
+                          paddingVertical: space.md,
+                          paddingHorizontal: space.lg,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: space.md,
+                        })}
+                      >
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <Text style={[type.heading, { color: theme.text }]} numberOfLines={1}>
+                            {e.venue.name}
+                          </Text>
+                          <Text style={[type.meta, { color: theme.textMuted }]} numberOfLines={1}>
+                            {e.venue.address1}
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name={mapped ? "location" : "chevron-forward"}
+                          size={15}
+                          color={mapped ? openGroup.corridor.color : theme.border}
+                        />
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
               </View>
             ) : null}
 
