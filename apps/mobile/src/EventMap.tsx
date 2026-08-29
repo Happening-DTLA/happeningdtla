@@ -142,6 +142,7 @@ export function EventMap({
   userCoords,
   region = DTLA_REGION,
   focusRegion = null,
+  focusKey = null,
   routes = [],
   activeRoute = null,
 }: {
@@ -152,8 +153,14 @@ export function EventMap({
   userCoords: Coords | null;
   /** Opening view. Defaults to the neighbourhood; a single venue passes its own. */
   region?: Region;
-  /** Set this to fly the map somewhere — picking a corridor, for instance. */
+  /** Where to fly. Paired with focusKey, which decides WHEN. */
   focusRegion?: Region | null;
+  /**
+   * Identity of the current framing. The map moves when this changes and not
+   * otherwise, so a background refetch cannot yank the map out from under
+   * someone who is panning around.
+   */
+  focusKey?: string | null;
   /** The night's corridors, drawn as coloured routes along their streets. */
   routes?: MapRoute[];
   /** Which route is picked. The others recede rather than disappear. */
@@ -163,9 +170,24 @@ export function EventMap({
 
   // Animated rather than re-mounted: `initialRegion` only applies once, so a
   // changed region prop would do nothing at all.
+  //
+  // Keyed, and the first key is swallowed. Without that the map flies on mount,
+  // fighting initialRegion; and without keying at all it would re-frame on
+  // every refetch. Crucially this also runs when a corridor is DESELECTED —
+  // the map has to come back out, or the pins it flew away from look deleted.
+  const framedAs = useRef<string | null>(null);
   useEffect(() => {
-    if (focusRegion) mapRef.current?.animateToRegion(focusRegion, 520);
-  }, [focusRegion]);
+    if (!focusKey || !focusRegion) return;
+    if (framedAs.current === null) {
+      framedAs.current = focusKey;
+      return;
+    }
+    if (framedAs.current === focusKey) return;
+    framedAs.current = focusKey;
+    mapRef.current?.animateToRegion(focusRegion, 520);
+    // focusRegion is read, not depended on: only the key decides when to move.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey]);
 
   const recenter = (coords: Coords) =>
     mapRef.current?.animateToRegion(

@@ -143,9 +143,12 @@ export default function MapScreen() {
 
   // Picking a corridor takes the map there. Without this the filter would drop
   // most of the pins and leave the person looking at empty streets.
+  // Picking a corridor takes the map there — and clearing it brings the map
+  // back out to everything. Leaving it parked on the corridor made the other
+  // pins look deleted when they were simply off-screen.
   const focusRegion = useMemo(
-    () => (corridor ? boundsOf(visiblePins) : null),
-    [corridor, visiblePins],
+    () => boundsOf(corridor ? visiblePins : pins),
+    [corridor, visiblePins, pins],
   );
 
   // Every pin is tappable, including ones off the chosen corridor — they are
@@ -277,6 +280,7 @@ export default function MapScreen() {
               // is within walking distance of where you are standing.
               pins={pins}
               routes={routes}
+              focusKey={corridor ?? "all"}
               activeRoute={corridor}
               focusRegion={focusRegion}
               selectedVenueId={selectedVenueId}

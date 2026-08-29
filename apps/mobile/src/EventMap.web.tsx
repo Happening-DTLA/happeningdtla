@@ -36,6 +36,7 @@ export function EventMap({
   userCoords: Coords | null;
   region?: typeof DTLA_REGION;
   focusRegion?: typeof DTLA_REGION | null;
+  focusKey?: string | null;
   routes?: { slug: string; color: string; path: number[][][] }[];
   activeRoute?: string | null;
 }) {
