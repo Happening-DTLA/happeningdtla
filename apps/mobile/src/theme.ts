@@ -115,3 +115,22 @@ export const type = {
     letterSpacing: -0.6,
   } as TextStyle,
 } as const;
+
+/**
+ * Readable ink for a given background colour.
+ *
+ * Corridor colours come from the organisers and run from a pale yellow to a
+ * dark green, so a fixed label colour is illegible at one end of that range.
+ * Relative luminance — the same rule WCAG contrast uses — picks the side to
+ * land on, which means a corridor added next year is legible without anyone
+ * choosing a text colour for it.
+ */
+export function inkOn(hex: string): string {
+  const h = hex.replace("#", "");
+  const channel = (i: number) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+  return luminance > 0.42 ? "#0a0a0c" : "#ffffff";
+}

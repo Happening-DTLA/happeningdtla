@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
 const organizerSelect = { id: true, slug: true, name: true, publiclyAttributed: true } as const;
 
 const eventSummaryInclude = {
-  venue: true,
+  venue: { include: { corridor: true } },
   organizer: { select: organizerSelect },
   ticketTypes: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
 } as const;

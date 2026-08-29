@@ -10,6 +10,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { newTicketCode } from "../src/lib/ticket-code";
 import { priceBreakdown } from "@dtlahappening/core";
+import { ART_NIGHT_CORRIDORS, ART_NIGHT_VENUES } from "./art-night-2026-09";
 
 const connectionString = process.env.DATABASE_URL!;
 
@@ -43,6 +44,9 @@ async function main() {
   await prisma.venueCheckIn.deleteMany();
   await prisma.event.deleteMany();
   await prisma.venue.deleteMany();
+  // After venues: they reference corridors, and the relation is SetNull rather
+  // than cascade, so a corridor with venues still attached would linger.
+  await prisma.corridor.deleteMany();
   await prisma.night.deleteMany();
   await prisma.organizerMember.deleteMany();
   await prisma.organizer.deleteMany();
@@ -355,7 +359,92 @@ async function main() {
     data: { quantitySold: { increment: qty } },
   });
 
+  // -------------------------------------------------------------------------
+  // DTLA ArtNight — Thursday 3 September 2026
+  //
+  // The real night, transcribed from the organisers' printed map. Fifty
+  // destinations across eight colour-coded corridors. Free to attend, which is
+  // why every opening here carries a single zero-price tier rather than a
+  // checkout: on ArtNight you walk in.
+  // -------------------------------------------------------------------------
+  console.log("→ DTLA ArtNight (3 Sep): corridors, venues, openings…");
+
+  const corridorId = new Map<string, string>();
+  for (const c of ART_NIGHT_CORRIDORS) {
+    const row = await prisma.corridor.create({
+      data: { slug: c.slug, name: c.name, color: c.color, along: c.along, sortOrder: c.sortOrder },
+    });
+    corridorId.set(c.slug, row.id);
+  }
+
+  const artNightOrg = await prisma.organizer.create({
+    data: {
+      name: "DTLA ArtNight",
+      slug: "dtla-artnight",
+      contactEmail: "hello@dtlaartnight.test",
+      bio: "The city-wide first-Thursday crawl — galleries, restaurants, bars and performance spaces across Downtown.",
+    },
+  });
+
+  const septNight = await prisma.night.create({
+    data: {
+      name: "DTLA ArtNight — September 2026",
+      slug: "art-night-2026-09",
+      date: new Date("2026-09-03T00:00:00Z"),
+      isPublished: true,
+      description:
+        "Explore galleries, restaurants, bars, performance spaces and cultural destinations across Downtown LA. Fifty destinations, eight corridors, 6pm until late.",
+    },
+  });
+
+  // 6pm–11pm Pacific on 3 September, which is PDT — so 01:00 to 06:00 UTC the
+  // NEXT day. Written as UTC instants rather than local ones for the reason
+  // documented in packages/core/src/datetime.ts.
+  const OPENS = new Date("2026-09-04T01:00:00Z");
+  const CLOSES = new Date("2026-09-04T06:00:00Z");
+
+  const categoryFor = (name: string): Category => {
+    const n = name.toLowerCase();
+    if (/gallery|galler|moca|broad|art\/space|art space|superchief|dataland|photography/.test(n)) return "ART";
+    if (/market/.test(n)) return "MARKET";
+    if (/caff|coffee|pizzeria|bar|grill|redbird|perch|mrs\. fish|biltmore|clifton/.test(n)) return "FOOD_DRINK";
+    if (/comedy|regent|performances|theater/.test(n)) return "PERFORMANCE";
+    if (/tattoo|atelier|makery|labs|design|cre8|kiso/.test(n)) return "WORKSHOP";
+    return "OTHER";
+  };
+
+  for (const v of ART_NIGHT_VENUES) {
+    const venue = await prisma.venue.create({
+      data: {
+        organizerId: artNightOrg.id,
+        corridorId: corridorId.get(v.corridor) ?? null,
+        name: v.name,
+        slug: `an-${v.slug}`,
+        address1: v.address1,
+        zip: "90013",
+        lat: v.lat,
+        lng: v.lng,
+      },
+    });
+
+    await makeEvent({
+      organizerId: artNightOrg.id,
+      venueId: venue.id,
+      nightId: septNight.id,
+      title: `${v.name} — ArtNight`,
+      slug: `an-${v.slug}-2026-09`,
+      category: categoryFor(v.name),
+      description: `Open for DTLA ArtNight on Thursday 3 September, 6pm until late.`,
+      startsAt: OPENS,
+      endsAt: CLOSES,
+      tiers: [{ name: "Free entry", priceCents: 0, quantity: 1000 }],
+    });
+  }
+
+  const pinned = ART_NIGHT_VENUES.filter((v) => v.lat !== null).length;
+
   console.log("\n✓ Seed complete.");
+  console.log(`  ArtNight: ${septNight.name} — ${ART_NIGHT_VENUES.length} venues, ${ART_NIGHT_CORRIDORS.length} corridors, ${pinned} pinned on the map`);
   console.log(`  Night:   ${night.name}`);
   console.log(`  Venues:  6   Events: 13   Organizers: 3`);
   console.log(`  Demo login email: ${attendee.email}`);

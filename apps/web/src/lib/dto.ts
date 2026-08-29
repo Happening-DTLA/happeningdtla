@@ -44,6 +44,16 @@ export function toApiVenue(v: VenueRow): ApiVenue {
     neighborhood: v.neighborhood,
     lat: v.lat,
     lng: v.lng,
+    // Picked by hand like everything else here — never spread a Prisma row.
+    corridor: v.corridor
+      ? {
+          slug: v.corridor.slug,
+          name: v.corridor.name,
+          color: v.corridor.color,
+          along: v.corridor.along,
+          sortOrder: v.corridor.sortOrder,
+        }
+      : null,
   };
 }
 

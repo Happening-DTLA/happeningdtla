@@ -35,6 +35,7 @@ export function EventMap({
   showUserLocation: boolean;
   userCoords: Coords | null;
   region?: typeof DTLA_REGION;
+  focusRegion?: typeof DTLA_REGION | null;
 }) {
   return (
     <ScrollView

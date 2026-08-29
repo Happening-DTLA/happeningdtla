@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import type { EventCategory } from "@dtlahappening/core";
 import {
@@ -11,10 +12,10 @@ import {
 } from "@dtlahappening/core";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
-import { theme, space } from "@/theme";
+import { theme, space, radius, type, inkOn } from "@/theme";
 import { CategoryChips, ErrorState, EventCard, Loading } from "@/components";
 import { EventMap, type Coords } from "@/EventMap";
-import { countEvents, groupEventsByVenue } from "@/venue-pins";
+import { boundsOf, countEvents, groupEventsByVenue, type VenuePin } from "@/venue-pins";
 
 type DatePreset = "TONIGHT" | "WEEKEND" | "ART_NIGHT" | "ALL";
 
@@ -66,6 +67,7 @@ export default function MapScreen() {
   const [preset, setPreset] = useState<DatePreset>("TONIGHT");
   const [category, setCategory] = useState<EventCategory | null>(null);
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
+  const [corridor, setCorridor] = useState<string | null>(null);
   const [coords, setCoords] = useState<Coords | null>(null);
   const [locationGranted, setLocationGranted] = useState(false);
 
@@ -111,11 +113,38 @@ export default function MapScreen() {
   const { status, data, error, retry } = useAsync(fetcher, [category, from, to]);
 
   const pins = useMemo(() => (data ? groupEventsByVenue(data.events) : []), [data]);
-  const selected = pins.find((p) => p.venue.id === selectedVenueId) ?? null;
 
-  // A venue that no longer matches the filters must not keep its sheet open.
+  // The corridors actually represented in what is on the map right now, in the
+  // printed map's own order. Derived rather than fetched: the answer is
+  // already in the pins, and a second request could disagree with them.
+  const corridors = useMemo(() => {
+    const seen = new Map<string, NonNullable<VenuePin["venue"]["corridor"]>>();
+    for (const pin of pins) {
+      const c = pin.venue.corridor;
+      if (c && !seen.has(c.slug)) seen.set(c.slug, c);
+    }
+    return [...seen.values()].sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [pins]);
+
+  const visiblePins = useMemo(
+    () => (corridor ? pins.filter((p) => p.venue.corridor?.slug === corridor) : pins),
+    [pins, corridor],
+  );
+
+  // Picking a corridor takes the map there. Without this the filter would drop
+  // most of the pins and leave the person looking at empty streets.
+  const focusRegion = useMemo(
+    () => (corridor ? boundsOf(visiblePins) : null),
+    [corridor, visiblePins],
+  );
+
+  const selected = visiblePins.find((p) => p.venue.id === selectedVenueId) ?? null;
+
+  // A venue that no longer matches the filters must not keep its sheet open,
+  // and a corridor that is not in the new results must not stay selected.
   useEffect(() => {
     setSelectedVenueId(null);
+    setCorridor(null);
   }, [category, from, to]);
 
   useEffect(() => {
@@ -144,7 +173,7 @@ export default function MapScreen() {
     };
   }, []);
 
-  const eventCount = countEvents(pins);
+  const eventCount = countEvents(visiblePins);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
@@ -171,6 +200,55 @@ export default function MapScreen() {
             onSelect={setCategory}
           />
         </View>
+
+        {/* The night's own key, when there is one. On ArtNight the corridor is
+            what people navigate by — the poster is organised that way and so is
+            the walk — so it appears only when the results actually carry one. */}
+        {corridors.length > 1 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.lg }}
+          >
+            {corridors.map((c) => {
+              const active = corridor === c.slug;
+              return (
+                <Pressable
+                  key={c.slug}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    setCorridor(active ? null : c.slug);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={c.name}
+                  style={{
+                    backgroundColor: active ? c.color : "transparent",
+                    borderColor: c.color,
+                    borderWidth: 1,
+                    borderRadius: radius.pill,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  {!active ? (
+                    <View
+                      style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.color }}
+                    />
+                  ) : null}
+                  <Text
+                    style={[type.label, { color: active ? inkOn(c.color) : theme.text }]}
+                  >
+                    {c.name.replace(" Corridor", "")}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
       </View>
 
       <View style={{ flex: 1, marginTop: space.sm }}>
@@ -181,7 +259,8 @@ export default function MapScreen() {
         ) : (
           <>
             <EventMap
-              pins={pins}
+              pins={visiblePins}
+              focusRegion={focusRegion}
               selectedVenueId={selectedVenueId}
               onSelectVenue={setSelectedVenueId}
               showUserLocation={locationGranted}

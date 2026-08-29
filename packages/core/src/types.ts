@@ -43,6 +43,23 @@ export interface ApiOrganizer {
   name: string;
 }
 
+/**
+ * A named stretch of Downtown, as the night's organisers group it.
+ *
+ * The colour comes from the server rather than a lookup table in each client,
+ * so the app, the web page and the poster on the wall cannot drift apart when
+ * the organisers change one.
+ */
+export interface ApiCorridor {
+  slug: string;
+  name: string;
+  /** Hex, from the printed map's key. */
+  color: string;
+  /** The street it runs along. Null for a district. */
+  along: string | null;
+  sortOrder: number;
+}
+
 export interface ApiVenue {
   id: string;
   slug: string;
@@ -56,6 +73,7 @@ export interface ApiVenue {
   neighborhood: string | null;
   lat: number | null;
   lng: number | null;
+  corridor: ApiCorridor | null;
 }
 
 /**

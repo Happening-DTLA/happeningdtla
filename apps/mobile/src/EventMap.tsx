@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import MapView, { Marker, type Region } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "@/theme";
+import { theme, inkOn } from "@/theme";
 import type { VenuePin } from "@/venue-pins";
 
 /**
@@ -18,6 +18,7 @@ export const DTLA_REGION: Region = {
 };
 
 export type Coords = { latitude: number; longitude: number };
+
 
 /**
  * A venue pin.
@@ -40,11 +41,15 @@ function VenueMarker({
 }) {
   const [tracks, setTracks] = useState(true);
 
+  // The corridor's own colour, so the map and the printed key agree at a
+  // glance. Falls back to the brand accent for venues outside a corridor.
+  const tint = pin.venue.corridor?.color ?? theme.accent;
+
   useEffect(() => {
     setTracks(true);
     const timer = setTimeout(() => setTracks(false), 600);
     return () => clearTimeout(timer);
-  }, [selected, pin.events.length]);
+  }, [selected, pin.events.length, tint]);
 
   return (
     <Marker
@@ -60,8 +65,8 @@ function VenueMarker({
           flexDirection: "row",
           alignItems: "center",
           gap: 6,
-          backgroundColor: selected ? theme.accent : theme.surface,
-          borderColor: selected ? theme.accent : theme.border,
+          backgroundColor: selected ? tint : theme.surface,
+          borderColor: tint,
           borderWidth: 1,
           borderRadius: 999,
           paddingVertical: 6,
@@ -75,14 +80,10 @@ function VenueMarker({
           elevation: 4,
         }}
       >
-        <Ionicons
-          name="location"
-          size={13}
-          color={selected ? theme.accentInk : theme.accent}
-        />
+        <Ionicons name="location" size={13} color={selected ? inkOn(tint) : tint} />
         <Text
           style={{
-            color: selected ? theme.accentInk : theme.text,
+            color: selected ? inkOn(tint) : theme.text,
             fontSize: 12,
             fontWeight: "700",
           }}
@@ -101,6 +102,7 @@ export function EventMap({
   showUserLocation,
   userCoords,
   region = DTLA_REGION,
+  focusRegion = null,
 }: {
   pins: VenuePin[];
   selectedVenueId: string | null;
@@ -109,8 +111,16 @@ export function EventMap({
   userCoords: Coords | null;
   /** Opening view. Defaults to the neighbourhood; a single venue passes its own. */
   region?: Region;
+  /** Set this to fly the map somewhere — picking a corridor, for instance. */
+  focusRegion?: Region | null;
 }) {
   const mapRef = useRef<MapView>(null);
+
+  // Animated rather than re-mounted: `initialRegion` only applies once, so a
+  // changed region prop would do nothing at all.
+  useEffect(() => {
+    if (focusRegion) mapRef.current?.animateToRegion(focusRegion, 520);
+  }, [focusRegion]);
 
   const recenter = (coords: Coords) =>
     mapRef.current?.animateToRegion(

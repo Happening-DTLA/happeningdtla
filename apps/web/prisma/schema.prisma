@@ -134,9 +134,39 @@ model OrganizerMember {
 // Places and nights
 // ---------------------------------------------------------------------------
 
+/// A named stretch of Downtown, the way Art Night organises it.
+///
+/// Deliberately not `Venue.neighborhood`, which is loose descriptive text.
+/// A corridor is EDITORIAL: the organisers decide what belongs to it, it
+/// carries a colour that appears on the printed map, and it is the unit people
+/// actually walk on the night. Free text cannot hold a colour or an order, and
+/// two spellings of "Historic Core" would split a corridor in half.
+///
+/// The colour is stored rather than derived so the app and the poster on the
+/// wall always agree, even when the organisers change one.
+model Corridor {
+  id        String @id @default(cuid())
+  name      String
+  slug      String @unique
+  /// Hex, matching the printed map's key.
+  color     String
+  /// The street it runs along, for wayfinding copy. Null for a district.
+  along     String?
+  /// Order on the printed map, north to south.
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venues Venue[]
+
+  @@index([sortOrder])
+}
+
 model Venue {
   id          String  @id @default(cuid())
   organizerId String
+  corridorId  String?
   name        String
   slug        String  @unique
   description String?
@@ -157,11 +187,13 @@ model Venue {
   updatedAt DateTime @updatedAt
 
   organizer Organizer      @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  corridor  Corridor?      @relation(fields: [corridorId], references: [id], onDelete: SetNull)
   events    Event[]
   checkIns  VenueCheckIn[]
 
   @@index([organizerId])
   @@index([neighborhood])
+  @@index([corridorId])
 }
 
 /// A city-wide night that many venues participate in — the Art Night container.
