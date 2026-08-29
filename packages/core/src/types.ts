@@ -58,6 +58,12 @@ export interface ApiCorridor {
   /** The street it runs along. Null for a district. */
   along: string | null;
   sortOrder: number;
+  /**
+   * The street's real geometry, as [[lat, lng], ...] runs — what lets a client
+   * draw the poster's coloured route over a real map. Null for a district,
+   * which has no single street to trace.
+   */
+  path: number[][][] | null;
 }
 
 export interface ApiVenue {
@@ -74,6 +80,8 @@ export interface ApiVenue {
   lat: number | null;
   lng: number | null;
   corridor: ApiCorridor | null;
+  /** Named on the map instead of shown as a dot. */
+  isLandmark: boolean;
 }
 
 /**

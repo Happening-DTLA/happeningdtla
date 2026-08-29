@@ -134,3 +134,11 @@ export function inkOn(hex: string): string {
   const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
   return luminance > 0.42 ? "#0a0a0c" : "#ffffff";
 }
+
+/** A hex colour at partial opacity, in the #RRGGBBAA form map overlays accept. */
+export function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `${hex}${a}`;
+}

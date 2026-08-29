@@ -22,6 +22,7 @@ export const UNSORTED: ApiCorridor = {
   color: "#a1a1aa",
   along: null,
   sortOrder: 999,
+  path: null,
 };
 
 /**

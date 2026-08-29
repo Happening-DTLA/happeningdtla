@@ -44,6 +44,7 @@ export function toApiVenue(v: VenueRow): ApiVenue {
     neighborhood: v.neighborhood,
     lat: v.lat,
     lng: v.lng,
+    isLandmark: v.isLandmark,
     // Picked by hand like everything else here — never spread a Prisma row.
     corridor: v.corridor
       ? {
@@ -52,6 +53,8 @@ export function toApiVenue(v: VenueRow): ApiVenue {
           color: v.corridor.color,
           along: v.corridor.along,
           sortOrder: v.corridor.sortOrder,
+          // Stored as Json, so it is checked rather than trusted on the way out.
+          path: Array.isArray(v.corridor.path) ? (v.corridor.path as number[][][]) : null,
         }
       : null,
   };

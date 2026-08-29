@@ -10,7 +10,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { newTicketCode } from "../src/lib/ticket-code";
 import { priceBreakdown } from "@dtlahappening/core";
-import { ART_NIGHT_CORRIDORS, ART_NIGHT_VENUES } from "./art-night-2026-09";
+import { ART_NIGHT_CORRIDORS, ART_NIGHT_PATHS, ART_NIGHT_VENUES } from "./art-night-2026-09";
 
 const connectionString = process.env.DATABASE_URL!;
 
@@ -372,7 +372,14 @@ async function main() {
   const corridorId = new Map<string, string>();
   for (const c of ART_NIGHT_CORRIDORS) {
     const row = await prisma.corridor.create({
-      data: { slug: c.slug, name: c.name, color: c.color, along: c.along, sortOrder: c.sortOrder },
+      data: {
+        slug: c.slug,
+        name: c.name,
+        color: c.color,
+        along: c.along,
+        sortOrder: c.sortOrder,
+        path: ART_NIGHT_PATHS[c.slug] ?? undefined,
+      },
     });
     corridorId.set(c.slug, row.id);
   }
@@ -405,7 +412,7 @@ async function main() {
 
   const categoryFor = (name: string): Category => {
     const n = name.toLowerCase();
-    if (/gallery|galler|moca|broad|art\/space|art space|superchief|dataland|photography/.test(n)) return "ART";
+    if (/gallery|galler|moca|broad|art\/space|art space|superchief|dataland|photography|bookstore|arcade/.test(n)) return "ART";
     if (/market/.test(n)) return "MARKET";
     if (/caff|coffee|pizzeria|bar|grill|redbird|perch|mrs\. fish|biltmore|clifton/.test(n)) return "FOOD_DRINK";
     if (/comedy|regent|performances|theater/.test(n)) return "PERFORMANCE";
@@ -424,6 +431,7 @@ async function main() {
         zip: "90013",
         lat: v.lat,
         lng: v.lng,
+        isLandmark: v.landmark,
       },
     });
 

@@ -126,6 +126,16 @@ export default function MapScreen() {
     return [...seen.values()].sort((a, b) => a.sortOrder - b.sortOrder);
   }, [pins]);
 
+  // Only corridors that actually carry geometry. A district has no single
+  // street, and a line invented through one would be a route nobody walks.
+  const routes = useMemo(
+    () =>
+      corridors
+        .filter((c) => c.path && c.path.length > 0)
+        .map((c) => ({ slug: c.slug, color: c.color, path: c.path! })),
+    [corridors],
+  );
+
   const visiblePins = useMemo(
     () => (corridor ? pins.filter((p) => p.venue.corridor?.slug === corridor) : pins),
     [pins, corridor],
@@ -138,7 +148,9 @@ export default function MapScreen() {
     [corridor, visiblePins],
   );
 
-  const selected = visiblePins.find((p) => p.venue.id === selectedVenueId) ?? null;
+  // Every pin is tappable, including ones off the chosen corridor — they are
+  // dimmed, not removed, so selection has to look at all of them.
+  const selected = pins.find((p) => p.venue.id === selectedVenueId) ?? null;
 
   // A venue that no longer matches the filters must not keep its sheet open,
   // and a corridor that is not in the new results must not stay selected.
@@ -173,7 +185,7 @@ export default function MapScreen() {
     };
   }, []);
 
-  const eventCount = countEvents(visiblePins);
+  const eventCount = countEvents(pins);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
@@ -259,7 +271,13 @@ export default function MapScreen() {
         ) : (
           <>
             <EventMap
-              pins={visiblePins}
+              // Every pin stays on the map; the corridor filter changes which
+              // street is emphasised, not which venues exist. Hiding the rest
+              // would break the one thing a crawl map is for — seeing what else
+              // is within walking distance of where you are standing.
+              pins={pins}
+              routes={routes}
+              activeRoute={corridor}
               focusRegion={focusRegion}
               selectedVenueId={selectedVenueId}
               onSelectVenue={setSelectedVenueId}
