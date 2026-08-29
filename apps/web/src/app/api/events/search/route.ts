@@ -35,6 +35,8 @@ export async function GET(request: Request) {
     from: fromRange?.start,
     toExclusive: toRange?.endExclusive,
     freeOnly: url.searchParams.get("freeOnly") === "true",
+    // Bounded: a client cannot ask the database for everything.
+    take: Math.min(Math.max(Number(url.searchParams.get("limit")?.trim() || 250), 1), 250),
   });
 
   return ok({ events: events.map(toApiEventSummary), total });

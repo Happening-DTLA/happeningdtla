@@ -89,7 +89,15 @@ export async function searchEvents(params: {
   freeOnly?: boolean;
   take?: number;
 }) {
-  const { q, category, from, toExclusive, freeOnly, take = 50 } = params;
+  // 50 was fine when a busy month held a dozen events. One ArtNight is fifty
+  // free openings on a single evening, all earlier than anything ticketed —
+  // so ordered by start time they filled the entire page and every paid event
+  // silently vanished from search, from Explore and from the map.
+  //
+  // A larger page is a stoppage, not a fix: real pagination is the answer and
+  // is written up in docs/launch-readiness.md. This keeps one busy night from
+  // hiding the rest of the calendar in the meantime.
+  const { q, category, from, toExclusive, freeOnly, take = 250 } = params;
 
   const where = {
     status: "PUBLISHED" as const,

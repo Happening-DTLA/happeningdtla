@@ -142,10 +142,16 @@ per field, plus a second full scan for the `count()` on every request. Fine at
 13 events; not at a few thousand with concurrent searching. The fix is Postgres
 full-text search (`tsvector` + GIN) or `pg_trgm`.
 
-### 11. No pagination
+### 11. No pagination — and it has already bitten
 
-`take: 50` with no cursor or offset, and the API exposes no paging parameter.
-Past fifty events, the rest are unreachable.
+`take: 50` with no cursor or offset. This stopped being theoretical the day
+ArtNight was seeded: fifty free openings on one evening, all earlier than
+anything ticketed, filled the entire page — so every paid event silently
+disappeared from search, from Explore and from the map, while sitting
+untouched in the database.
+
+Raised to 250 with a bounded `limit` parameter, which buys time and is not a
+fix. The next busy night puts it back. Real cursor pagination is still owed.
 
 ### 12. Connection pooling assumes a long-lived server
 
