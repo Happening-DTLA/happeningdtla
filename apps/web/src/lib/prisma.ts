@@ -12,8 +12,26 @@ function createPrismaClient() {
   // The local dev server speaks plaintext; hosted Postgres (Supabase, Neon, RDS)
   // requires TLS. Note we do NOT blanket-disable certificate verification — on a
   // payments app that would silently accept a man-in-the-middle on the database
-  // connection. Providers needing a custom CA should supply it here explicitly.
+  // connection. Providers needing a custom CA supply it through
+  // DATABASE_CA_CERT, as a PEM.
+  //
+  // Supabase needs this: its Postgres is served under a private root ("Supabase
+  // Root 2021 CA") that is not in any public trust store, so verification fails
+  // with "self-signed certificate in certificate chain" until the root is
+  // provided. Download it from the project's Database settings. It is a public
+  // certificate, not a secret — but it belongs in configuration rather than in
+  // the source, because it is per-provider and it expires.
   const isLocal = /localhost|127\.0\.0\.1/.test(connectionString);
+  const ca = process.env.DATABASE_CA_CERT?.trim() || undefined;
+
+  if (!isLocal && !ca && process.env.NODE_ENV === "production") {
+    // Loud rather than silent: without a CA this either fails to connect or,
+    // worse, someone "fixes" it by turning verification off.
+    console.warn(
+      "[prisma] DATABASE_CA_CERT is not set. A hosted database with a private " +
+        "root will refuse to verify. Set it to the provider's CA in PEM form.",
+    );
+  }
   const adapter = new PrismaPg({
     connectionString,
     // A ticket on-sale is a thundering herd: hundreds of people tap Buy in the
@@ -29,7 +47,9 @@ function createPrismaClient() {
     // `||` not `??`: a blank env var is an empty string, and Number("") is 0,
     // which would configure a pool that can never hand out a connection.
     max: Number(process.env.DATABASE_POOL_MAX?.trim() || 6),
-    ...(isLocal ? {} : { ssl: true }),
+    // `ssl: true` means verify against the system trust store. With a CA it
+    // verifies against that instead. Neither path accepts an unverified cert.
+    ...(isLocal ? {} : { ssl: ca ? { ca } : true }),
   });
 
   return new PrismaClient({ adapter });

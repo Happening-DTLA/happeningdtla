@@ -40,6 +40,36 @@ through node-postgres here. Test that deliberately rather than assuming it.
 
 Note the session pooler's username is `postgres.<project-ref>`, not `postgres`.
 
+### The TLS certificate
+
+Supabase serves Postgres under its own private root — "Supabase Root 2021 CA" —
+which is in no public trust store. Connections fail with **"self-signed
+certificate in certificate chain"** until that root is supplied.
+
+The internet's usual answer is `rejectUnauthorized: false`. Do not. On an app
+that handles payments, that silently accepts a man-in-the-middle on the
+database connection, and `src/lib/prisma.ts` refuses to do it.
+
+Instead: **Project Settings → Database → SSL Configuration → Download
+certificate**, then set the PEM as `DATABASE_CA_CERT`. In `.env` it must be
+wrapped in double quotes so dotenv keeps the newlines; in Vercel, paste it
+into the value box as-is.
+
+It is a public certificate, not a secret. It expires **April 2031**.
+
+Worth doing once: check the downloaded root's SHA-256 fingerprint against the
+one the server actually presents.
+
+```bash
+openssl x509 -in prod-ca-2021.crt -noout -fingerprint -sha256
+echo | openssl s_client -connect aws-0-<region>.pooler.supabase.com:5432 \
+  -starttls postgres -showcerts 2>/dev/null \
+  | awk '/BEGIN CERT/{n++} n==3' | openssl x509 -noout -fingerprint -sha256
+```
+
+They must match. Taking the root from the connection alone would be circular —
+it proves nothing against the attack verification exists to stop.
+
 ## 2. Migrate and seed
 
 From the repo root, with the DIRECT url:
@@ -79,6 +109,7 @@ Import the GitHub repo. It is a monorepo, so:
 | --- | --- |
 | `DATABASE_URL` | Supabase **session pooler** url |
 | `DATABASE_POOL_MAX` | `1` — see below |
+| `DATABASE_CA_CERT` | Supabase's root CA, PEM. Without it, every query fails |
 | `NEXT_PUBLIC_APP_URL` | The deployed origin, e.g. `https://…vercel.app` |
 | `STRIPE_SECRET_KEY` | Test key |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Test key |
