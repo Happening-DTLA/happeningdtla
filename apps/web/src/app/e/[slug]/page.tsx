@@ -9,6 +9,16 @@ import {
   formatTimeRange,
 } from "@dtlahappening/core";
 
+/**
+ * Rendered per request, never prerendered.
+ *
+ * This page shows remaining inventory and sold-out state. Prerendered, it
+ * would serve whatever was true when the build ran: "12 left" for a tier that
+ * has gone, or an available button on a sold-out event. On a ticketing page
+ * that is not staleness, it is a customer turned away at a door.
+ */
+export const dynamic = "force-dynamic";
+
 export default async function EventPage({ params }: PageProps<"/e/[slug]">) {
   const { slug } = await params;
   const event = await getEventBySlug(slug);

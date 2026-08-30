@@ -8,6 +8,15 @@ import {
   formatTimeRange,
 } from "@dtlahappening/core";
 
+/**
+ * Rendered per request, never prerendered.
+ *
+ * This page lists what is on tonight. Statically generated it would freeze the
+ * listing at build time and keep serving it — an events app showing last
+ * week's events, refreshed only when someone happens to deploy.
+ */
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const night = await getUpcomingNight();
   const standalone = await getStandaloneEvents();

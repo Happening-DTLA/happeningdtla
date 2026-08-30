@@ -55,6 +55,28 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+/**
+ * Built on first query rather than at module load, for the same reason as the
+ * Stripe client: `next build` imports every route to collect page data, so a
+ * throw at module scope makes the app unbuildable whenever DATABASE_URL is
+ * absent — every CI run, every preview deploy, every fresh clone. The missing
+ * variable is a runtime problem, and it should announce itself at runtime.
+ *
+ * The development-time cache on globalThis is kept: without it, hot reload
+ * opens a new pool on every edit until Postgres refuses connections.
+ */
+function resolveClient(): PrismaClient {
+  if (globalForPrisma.prisma) return globalForPrisma.prisma;
+  const created = createPrismaClient();
+  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = created;
+  return created;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+let client: PrismaClient | null = null;
+
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    client ??= resolveClient();
+    return Reflect.get(client, prop, client);
+  },
+});
