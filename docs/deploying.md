@@ -18,25 +18,34 @@ Supabase gives three connection strings. They are not interchangeable:
 
 | Which | Port | Use it for |
 | --- | --- | --- |
-| **Direct** | 5432 | Migrations and seeding, run from a laptop |
-| **Session pooler** | 5432 (pooler host) | The deployed app — safe default |
-| **Transaction pooler** | 6543 | The deployed app at scale, with caveats |
+| **Direct** | 5432 | Nothing. IPv6-only — unreachable from most networks |
+| **Session pooler** | 5432 (pooler host) | Migrations, seeding, and the deployed app |
+| **Transaction pooler** | 6543 | The deployed app at scale, after testing |
 
-**Start with the session pooler for the app.** The transaction pooler is the
-one you eventually want — it holds far more clients — but it does not keep a
-connection across statements, which breaks prepared statements. Prisma reaches
-them through node-postgres here, so transaction mode needs testing rather than
-assuming. Session mode has neither problem and is plenty for now.
+**Use the session pooler for everything, including migrations.**
 
-Migrations must use the **direct** connection. A pooler will not reliably hold
-the advisory lock that `migrate deploy` takes.
+The direct connection is a trap: `db.<ref>.supabase.co` has **no IPv4 record**.
+Supabase made direct connections IPv6-only, so any machine or platform without
+an IPv6 route cannot resolve it at all — the failure is `ENOTFOUND`, which
+looks like a wrong hostname rather than a missing protocol. Most home networks
+and many serverless platforms are IPv4-only. The pooler hostnames
+(`aws-0-<region>.pooler.supabase.com`) do have A records and work everywhere.
+
+Session mode holds one connection per client for the life of the session, so
+it behaves like a direct connection: migrations, advisory locks and prepared
+statements all work. Transaction mode (port 6543) holds far more clients and
+is where this goes at scale, but it does not keep a connection across
+statements, which breaks prepared statements — and Prisma reaches Postgres
+through node-postgres here. Test that deliberately rather than assuming it.
+
+Note the session pooler's username is `postgres.<project-ref>`, not `postgres`.
 
 ## 2. Migrate and seed
 
 From the repo root, with the DIRECT url:
 
 ```bash
-cd apps/web && DATABASE_URL="<direct-url>" npx prisma migrate deploy
+cd apps/web && DATABASE_URL="<session-pooler-url>" npx prisma migrate deploy
 ```
 
 `migrate deploy` applies existing migrations and never diffs, so it needs no
@@ -46,7 +55,7 @@ Do not use `migrate dev` against a hosted database.
 Then seed once, to get ArtNight and the demo events in:
 
 ```bash
-cd apps/web && DATABASE_URL="<direct-url>" npx prisma db seed
+cd apps/web && DATABASE_URL="<session-pooler-url>" npx prisma db seed
 ```
 
 The seed **deletes every row it manages** before inserting. It is safe now and
