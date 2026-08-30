@@ -197,6 +197,9 @@ It is refused in production.
 None block anything else. Guest checkout means no buyer needs an account.
 
 **Small and mine to do:**
+- Get street addresses for the 37 ArtNight venues that have none, so they can
+  be pinned on the map. See "Owed: 37 venue addresses" in
+  `launch-readiness.md`. Nothing else about ArtNight is blocked on code.
 - Remove the dev-only "claim a venue" button — invitations replace it, and it
   should not exist when a venue partner first sees the dashboard.
 - Invite the other developer to the GitHub org and the repo, and send them

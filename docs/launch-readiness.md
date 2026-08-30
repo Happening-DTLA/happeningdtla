@@ -192,6 +192,32 @@ Postgres before the night** — that is still outstanding.
 
 ---
 
+## Owed: 37 venue addresses
+
+The single highest-value thing that is not code.
+
+ArtNight's fifty venues are all in the app, correctly grouped into the eight
+corridors from the organisers' printed map. Only **13 have coordinates** —
+those resolved against OpenStreetMap and survived a check that they fall in
+their own corridor's latitude band. The other 37 are small galleries and
+studios that are not in any public map database, and their positions were NOT
+guessed: the poster is a schematic, and a pin on the wrong block looks correct
+while sending someone to the wrong door.
+
+Those 37 appear everywhere — under their corridor on the night screen, and in
+the corridor sheet on the map — with the street they sit on. What they cannot
+do is show as a pin.
+
+**What is needed:** a street address for each. From dtlaartnight.com, the
+organisers directly, or the venues themselves. With addresses they geocode in
+minutes and light up on the map with no code change; `ART_NIGHT_VENUES` in
+`apps/web/prisma/art-night-2026-09.ts` already has the shape, and every
+`lat: null` there is a venue waiting for one.
+
+Worth asking for at the same time: where each corridor's coloured line is
+meant to start and end. Two are currently clipped short because the streets do
+not reach the poster's cross-streets in the map data.
+
 ## Suggested order
 
 Sequenced by what unblocks the most, given five weeks:
