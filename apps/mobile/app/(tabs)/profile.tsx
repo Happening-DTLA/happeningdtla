@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, space } from "@/theme";
 import { useLikes } from "@/likes-store";
+import { TICKETING_ENABLED } from "@/features";
 import { API_BASE_URL } from "@/api";
 
 /**
@@ -84,17 +85,28 @@ export default function ProfileScreen() {
           }
           onPress={() => router.push("/saved")}
         />
-        <Row icon="receipt-outline" label="Order history" hint="Coming soon" />
+        {TICKETING_ENABLED ? (
+          <Row icon="receipt-outline" label="Order history" hint="Coming soon" />
+        ) : null}
         <Row icon="notifications-outline" label="Notifications" hint="Coming soon" />
+        <Row
+          icon="map-outline"
+          label="Visitor guide"
+          hint="Getting there, and what to expect"
+          onPress={() => router.push("/visitor-guide")}
+        />
         <Row icon="business-outline" label="For organizers" hint="Manage your venue's events" />
         {/* Staff-only. Reaching this screen grants nothing on its own — the
             device still has to be paired with a code from an organizer. */}
-        <Row
-          icon="scan-outline"
-          label="Door scanner"
-          hint="Venue staff — needs a pairing code"
-          onPress={() => router.push("/door/scan")}
-        />
+        {/* Meaningless at a free event with no doors to scan. */}
+        {TICKETING_ENABLED ? (
+          <Row
+            icon="scan-outline"
+            label="Door scanner"
+            hint="Venue staff — needs a pairing code"
+            onPress={() => router.push("/door/scan")}
+          />
+        ) : null}
       </View>
 
       <View style={{ gap: 4, paddingTop: space.md }}>

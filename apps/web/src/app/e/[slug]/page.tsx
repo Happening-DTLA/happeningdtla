@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getEventBySlug, remaining } from "@/lib/queries";
+import { TICKETING_ENABLED } from "@/lib/features";
 import {
   formatCents,
   priceBreakdown,
@@ -73,6 +74,10 @@ export default async function EventPage({ params }: PageProps<"/e/[slug]">) {
         </a>
       </section>
 
+      {/* Hidden unless this deployment sells. On an ArtNight-only build every
+          stop is free and open, and a Tickets heading over a "just show up"
+          note is a question nobody asked. */}
+      {!TICKETING_ENABLED ? null : (
       <section className="mt-8">
         <h2 className="mb-3 font-mono text-xs uppercase tracking-widest text-text-muted">
           Tickets
@@ -145,6 +150,7 @@ export default async function EventPage({ params }: PageProps<"/e/[slug]">) {
           })}
         </ul>
       </section>
+      )}
     </article>
   );
 }

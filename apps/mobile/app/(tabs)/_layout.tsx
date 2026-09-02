@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "@/theme";
+import { TICKETING_ENABLED } from "@/features";
 
 /**
  * Five tabs, matching what people already expect from a ticketing app.
@@ -53,6 +54,9 @@ export default function TabLayout() {
         name="tickets"
         options={{
           title: "Tickets",
+          // `href: null` keeps the route reachable by name while removing it
+          // from the bar — so nothing breaks if something still links to it.
+          href: TICKETING_ENABLED ? undefined : null,
           tabBarIcon: ({ color, size }) => <Ionicons name="ticket-outline" size={size} color={color} />,
         }}
       />

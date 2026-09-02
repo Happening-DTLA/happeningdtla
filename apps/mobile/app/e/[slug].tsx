@@ -27,6 +27,7 @@ import { useAsync } from "@/useAsync";
 import { theme, space, radius, type } from "@/theme";
 import { ErrorState, EventCard, Label, LikeButton, Loading } from "@/components";
 import { useLikes } from "@/likes-store";
+import { TICKETING_ENABLED } from "@/features";
 import { EventMap } from "@/EventMap";
 
 const Section = ({ children }: { children: React.ReactNode }) => (
@@ -309,14 +310,64 @@ export default function EventScreen() {
           </View>
         </Section>
 
-        <View onLayout={(e) => setTicketsY(e.nativeEvent.layout.y)}>
+        {TICKETING_ENABLED ? (
+          <View onLayout={(e) => setTicketsY(e.nativeEvent.layout.y)}>
+            <Section>
+              <Label>Tickets</Label>
+              {event.ticketTypes.map((tier) => (
+                <TicketTier key={tier.id} tier={tier} slug={event.slug} ended={over} />
+              ))}
+            </Section>
+          </View>
+        ) : (
+          /* ArtNight is free and open. What someone needs here is the venue —
+             what kind of place it is, whether they can bring a kid, and a way
+             to look it up — not a purchase flow for a ticket that costs nothing. */
           <Section>
-            <Label>Tickets</Label>
-            {event.ticketTypes.map((tier) => (
-              <TicketTier key={tier.id} tier={tier} slug={event.slug} ended={over} />
-            ))}
+            <Label>The venue</Label>
+            <View
+              style={{
+                borderColor: theme.border,
+                borderWidth: 1,
+                padding: space.lg,
+                gap: space.md,
+              }}
+            >
+              {venue.kind ? (
+                <Text style={[type.label, { color: theme.accent }]}>{venue.kind}</Text>
+              ) : null}
+              {venue.tags.length > 0 ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+                  {venue.tags.map((t) => (
+                    <View
+                      key={t}
+                      style={{
+                        borderColor: theme.border,
+                        borderWidth: 1,
+                        borderRadius: radius.pill,
+                        paddingVertical: 5,
+                        paddingHorizontal: 11,
+                      }}
+                    >
+                      <Text style={[type.label, { color: theme.textMuted }]}>{t}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <Text style={[type.body, { color: theme.textMuted }]}>
+                Free to walk in. No ticket needed.
+              </Text>
+              {venue.website ? (
+                <Pressable
+                  onPress={() => Linking.openURL(venue.website!).catch(() => {})}
+                  accessibilityRole="link"
+                >
+                  <Text style={[type.label, { color: theme.accent }]}>Visit their site ›</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </Section>
-        </View>
+        )}
 
         {/* What Eventbrite fills with paid ads.
             Its longest section is "More like this", and on the recording two of
@@ -371,7 +422,9 @@ export default function EventScreen() {
       {/* Price and the way in, always reachable. Genuinely the best thing
           about the reference page — but it states a bare range, so the low
           number can be a tier that is already gone. This one quotes a price
-          that is actually buyable, all-in, or says why there isn't one. */}
+          that is actually buyable, all-in, or says why there isn't one.
+          Shown only when this build sells tickets. */}
+      {TICKETING_ENABLED ? (
       <View
         style={{
           position: "absolute",
@@ -437,6 +490,7 @@ export default function EventScreen() {
           </Pressable>
         ) : null}
       </View>
+      ) : null}
     </View>
   );
 }
