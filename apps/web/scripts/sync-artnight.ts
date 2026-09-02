@@ -21,6 +21,13 @@
  *   npx tsx scripts/sync-artnight.ts --apply
  */
 import "dotenv/config";
+
+// The sync targets the DEPLOYED database, not the local one. Without this the
+// command would quietly update a laptop's copy and look like it worked.
+if (!process.env.DATABASE_URL?.includes("supabase") && process.env.SUPABASE_DIRECT_URL) {
+  process.env.DATABASE_URL = process.env.SUPABASE_DIRECT_URL;
+}
+
 import { prisma } from "../src/lib/prisma";
 
 const TOPIC = "685057f00ac0f15d5b002028";
@@ -96,6 +103,8 @@ function toPath(lat: number, lng: number, path: number[][][]): number {
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const target = (process.env.DATABASE_URL ?? "").replace(/:\/\/[^@]*@/, "://****@");
+  console.log(`target: ${target.split("?")[0] || "(unset)"}\n`);
 
   const res = await fetch(POINTS, { headers: { "user-agent": "DTLAHappening/0.1" } });
   if (!res.ok) throw new Error(`map returned ${res.status}`);

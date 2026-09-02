@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
@@ -12,6 +12,7 @@ import { Archivo_700Bold } from "@expo-google-fonts/archivo/700Bold";
 import { ArchivoBlack_400Regular } from "@expo-google-fonts/archivo-black/400Regular";
 import { PaymentProvider } from "@/PaymentProvider";
 import { LikesProvider } from "@/likes-store";
+import { Welcome } from "@/Welcome";
 import { theme } from "@/theme";
 
 // Held until the faces are ready. Without this the first frame paints in the
@@ -22,6 +23,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function RootLayout() {
+  // Once per launch, not per navigation — this component mounts with the app.
+  const [welcomed, setWelcomed] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
     Archivo_400Regular,
     Archivo_500Medium,
@@ -75,6 +78,9 @@ export default function RootLayout() {
           <Stack.Screen name="saved" options={{ title: "Saved events" }} />
           <Stack.Screen name="visitor-guide" options={{ title: "Visitor guide" }} />
         </Stack>
+        {/* Above the navigator so the poster is the first thing drawn, and the
+            app behind it is already mounted when it clears. */}
+        {!welcomed ? <Welcome onDone={() => setWelcomed(true)} /> : null}
       </PaymentProvider>
     </LikesProvider>
   );

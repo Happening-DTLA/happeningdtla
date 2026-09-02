@@ -5,470 +5,320 @@ import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
-import type { EventCategory } from "@dtlahappening/core";
-import {
-  EVENT_CATEGORIES,
-  pacificToday,
-  pacificWeekendRange,
-} from "@dtlahappening/core";
+import type { ApiEventSummary } from "@dtlahappening/core";
+import { VENUE_TAGS } from "@dtlahappening/core";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
 import { theme, space, radius, type, inkOn } from "@/theme";
-import { CategoryChips, ErrorState, EventCard, Loading } from "@/components";
+import { ErrorState, Loading } from "@/components";
 import { EventMap, type Coords } from "@/EventMap";
-import { boundsOf, countEvents, groupEventsByVenue, type VenuePin } from "@/venue-pins";
+import { boundsOf, groupEventsByVenue } from "@/venue-pins";
 import { groupByCorridor } from "@/corridors";
 
-type DatePreset = "TONIGHT" | "WEEKEND" | "ART_NIGHT" | "ALL";
+/**
+ * The night, on a map.
+ *
+ * Sourced from the night itself rather than a date search. This app is
+ * ArtNight, so "what is on tonight" has exactly one answer and a row of date
+ * presets over it was three taps that could only ever lead back here.
+ */
+export default function MapScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
+  const [corridor, setCorridor] = useState<string | null>(null);
+  const [refine, setRefine] = useState<{ axis: "kind" | "tag"; value: string } | null>(null);
+  const [coords, setCoords] = useState<Coords | null>(null);
+  const [locationGranted, setLocationGranted] = useState(false);
 
-const PRESET_LABELS: Record<DatePreset, string> = {
-  TONIGHT: "Tonight",
-  WEEKEND: "This weekend",
-  ART_NIGHT: "Art Night",
-  ALL: "All upcoming",
-};
+  const fetcher = useCallback((s: AbortSignal) => api.upcomingNight(s), []);
+  const { status, data: night, error, retry } = useAsync(fetcher);
 
-function Chip({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
+  const events = useMemo(() => night?.events ?? [], [night]);
+
+  const refinements = useMemo(() => {
+    const kinds = new Map<string, number>();
+    const tags = new Map<string, number>();
+    for (const e of events) {
+      if (e.venue.kind) kinds.set(e.venue.kind, (kinds.get(e.venue.kind) ?? 0) + 1);
+      for (const t of e.venue.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
+    }
+    const ORDER = ["Art Galleries", "Food and Drink", "Museums", "Shopping", "Special Events"];
+    return [
+      ...ORDER.filter((k) => kinds.has(k)).map((k) => ({
+        axis: "kind" as const, value: k, count: kinds.get(k)!,
+        label: k.replace("Art Galleries", "Galleries").replace("Food and Drink", "Food & Drink"),
+      })),
+      ...VENUE_TAGS.filter((t) => tags.has(t)).map((t) => ({
+        axis: "tag" as const, value: t as string, label: t as string, count: tags.get(t)!,
+      })),
+    ];
+  }, [events]);
+
+  const matches = useCallback(
+    (e: ApiEventSummary) =>
+      (!refine ||
+        (refine.axis === "kind" ? e.venue.kind === refine.value : e.venue.tags.includes(refine.value))) &&
+      (!corridor || e.venue.corridor?.slug === corridor),
+    [refine, corridor],
+  );
+
+  const allPins = useMemo(() => groupEventsByVenue(events), [events]);
+  const pins = useMemo(() => groupEventsByVenue(events.filter(matches)), [events, matches]);
+
+  const corridors = useMemo(
+    () => groupByCorridor(events).map((g) => ({ ...g.corridor, stops: g.events.length })),
+    [events],
+  );
+  const routes = useMemo(
+    () => corridors.filter((c) => c.path?.length).map((c) => ({ slug: c.slug, color: c.color, path: c.path! })),
+    [corridors],
+  );
+
+  // Framing follows the filter: choosing a corridor goes there, clearing it
+  // comes back out to everything. Parked on a corridor, the rest of the pins
+  // look deleted when they are merely off-screen.
+  const focusRegion = useMemo(() => boundsOf(pins.length ? pins : allPins), [pins, allPins]);
+  const focusKey = `${corridor ?? "all"}:${refine?.value ?? "all"}`;
+
+  const selected = pins.find((p) => p.venue.id === selectedVenueId) ?? null;
+  const openGroup = corridor
+    ? (groupByCorridor(events.filter(matches)).find((g) => g.corridor.slug === corridor) ?? null)
+    : null;
+
+  useEffect(() => {
+    setSelectedVenueId(null);
+  }, [corridor, refine]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!active || permission.status !== "granted") return;
+      setLocationGranted(true);
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      if (active) setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+    })().catch(() => {
+      /* denied or unavailable — the map is already centred on Downtown */
+    });
+    return () => { active = false; };
+  }, []);
+
+  if (status === "loading") return <Loading />;
+  if (status === "error") return <ErrorState message={error.message} onRetry={retry} />;
+
+  const Chip = ({
+    label, active, color, onPress,
+  }: { label: string; active: boolean; color?: string; onPress: () => void }) => (
     <Pressable
-      onPress={onPress}
+      onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress(); }}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      style={({ pressed }) => ({
-        backgroundColor: active ? theme.accent : pressed ? theme.surface2 : theme.surface,
-        borderColor: active ? theme.accent : theme.border,
+      style={{
+        backgroundColor: active ? (color ?? theme.text) : "transparent",
+        borderColor: color ?? theme.border,
         borderWidth: 1,
-        borderRadius: 999,
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-      })}
+        borderRadius: radius.pill,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+      }}
     >
+      {color && !active ? (
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+      ) : null}
       <Text
-        style={{
-          color: active ? theme.accentInk : theme.text,
-          fontSize: 13,
-          fontWeight: "600",
-        }}
+        style={[
+          type.label,
+          { color: active ? (color ? inkOn(color) : theme.bg) : theme.textMuted },
+        ]}
       >
         {label}
       </Text>
     </Pressable>
   );
-}
-
-export default function MapScreen() {
-  const insets = useSafeAreaInsets();
-  const [preset, setPreset] = useState<DatePreset>("TONIGHT");
-  const [category, setCategory] = useState<EventCategory | null>(null);
-  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
-  const [corridor, setCorridor] = useState<string | null>(null);
-  const router = useRouter();
-  const [coords, setCoords] = useState<Coords | null>(null);
-  const [locationGranted, setLocationGranted] = useState(false);
-
-  // The Art Night date comes from the Night row rather than being computed as
-  // "first Thursday". The schedule is data, not a rule — a night moved for a
-  // holiday would silently disagree with a computed date, and the row is what
-  // tickets are actually sold against.
-  //
-  // Its own request on purpose: /api/nights/upcoming 404s when none is
-  // scheduled, and that should grey out one chip, not break the map.
-  const nightFetcher = useCallback((s: AbortSignal) => api.upcomingNight(s), []);
-  const night = useAsync(nightFetcher, []);
-  const artNightDate = night.status === "ready" ? night.data.date : null;
-
-  const { from, to } = useMemo((): { from?: string; to?: string } => {
-    switch (preset) {
-      case "TONIGHT": {
-        // Recomputed only when the preset changes, so an app left open across
-        // midnight keeps showing the night it was opened for. That is the
-        // right answer at 1am — "tonight" is still the night you went out.
-        const today = pacificToday();
-        return { from: today, to: today };
-      }
-      case "WEEKEND":
-        return pacificWeekendRange();
-      case "ART_NIGHT":
-        return artNightDate ? { from: artNightDate, to: artNightDate } : {};
-      case "ALL":
-        return {};
-    }
-  }, [preset, artNightDate]);
-
-  // No scheduled night means no Art Night chip. Showing it would make the
-  // filter quietly equivalent to "all upcoming", which looks like a bug.
-  const presets: DatePreset[] = artNightDate
-    ? ["TONIGHT", "WEEKEND", "ART_NIGHT", "ALL"]
-    : ["TONIGHT", "WEEKEND", "ALL"];
-
-  const fetcher = useCallback(
-    (s: AbortSignal) => api.search({ category: category ?? undefined, from, to }, s),
-    [category, from, to],
-  );
-  const { status, data, error, retry } = useAsync(fetcher, [category, from, to]);
-
-  const pins = useMemo(() => (data ? groupEventsByVenue(data.events) : []), [data]);
-
-  // The corridors actually represented in what is on the map right now, in the
-  // printed map's own order. Derived rather than fetched: the answer is
-  // already in the pins, and a second request could disagree with them.
-  const corridors = useMemo(() => {
-    const seen = new Map<string, NonNullable<VenuePin["venue"]["corridor"]>>();
-    for (const pin of pins) {
-      const c = pin.venue.corridor;
-      if (c && !seen.has(c.slug)) seen.set(c.slug, c);
-    }
-    return [...seen.values()].sort((a, b) => a.sortOrder - b.sortOrder);
-  }, [pins]);
-
-  // Only corridors that actually carry geometry. A district has no single
-  // street, and a line invented through one would be a route nobody walks.
-  const routes = useMemo(
-    () =>
-      corridors
-        .filter((c) => c.path && c.path.length > 0)
-        .map((c) => ({ slug: c.slug, color: c.color, path: c.path! })),
-    [corridors],
-  );
-
-  // Grouped from every event, not from the pins. Most ArtNight venues have no
-  // coordinates yet, so a corridor's real stop count lives here — the map alone
-  // would quietly under-report a ten-stop street as two.
-  const corridorGroups = useMemo(() => groupByCorridor(data?.events ?? []), [data]);
-  const openGroup = corridor
-    ? (corridorGroups.find((g) => g.corridor.slug === corridor) ?? null)
-    : null;
-
-  const visiblePins = useMemo(
-    () => (corridor ? pins.filter((p) => p.venue.corridor?.slug === corridor) : pins),
-    [pins, corridor],
-  );
-
-  // Picking a corridor takes the map there. Without this the filter would drop
-  // most of the pins and leave the person looking at empty streets.
-  // Picking a corridor takes the map there — and clearing it brings the map
-  // back out to everything. Leaving it parked on the corridor made the other
-  // pins look deleted when they were simply off-screen.
-  const focusRegion = useMemo(
-    () => boundsOf(corridor ? visiblePins : pins),
-    [corridor, visiblePins, pins],
-  );
-
-  const selected = visiblePins.find((p) => p.venue.id === selectedVenueId) ?? null;
-
-  // A venue that no longer matches the filters must not keep its sheet open,
-  // and a corridor that is not in the new results must not stay selected.
-  useEffect(() => {
-    setSelectedVenueId(null);
-    setCorridor(null);
-  }, [category, from, to]);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      // Asked on arrival rather than behind a button: the blue dot is the
-      // point of this screen. Denial is a normal outcome, not an error — the
-      // map is already centred on Downtown and stays fully usable without it.
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!active || permission.status !== "granted") return;
-      setLocationGranted(true);
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      if (!active) return;
-      setCoords({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
-    })().catch(() => {
-      /* No fix available. The map still works; there is nothing to tell the user. */
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const eventCount = countEvents(visiblePins);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
-      <View style={{ paddingTop: space.md, gap: space.sm }}>
+      <View style={{ paddingTop: space.sm, gap: space.sm }}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: space.lg, gap: space.sm }}
+          contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.lg }}
         >
-          {presets.map((p) => (
+          <Chip label={`All ${allPins.length}`} active={!corridor} onPress={() => setCorridor(null)} />
+          {corridors.map((c) => (
             <Chip
-              key={p}
-              label={PRESET_LABELS[p]}
-              active={preset === p}
-              onPress={() => setPreset(p)}
+              key={c.slug}
+              label={`${c.name.replace(" Corridor", "")}  ${c.stops}`}
+              active={corridor === c.slug}
+              color={c.color}
+              onPress={() => setCorridor(corridor === c.slug ? null : c.slug)}
             />
           ))}
         </ScrollView>
 
-        <View>
-          <CategoryChips
-            categories={EVENT_CATEGORIES}
-            selected={category}
-            onSelect={setCategory}
-          />
-        </View>
-
-        {/* The night's own key, when there is one. On ArtNight the corridor is
-            what people navigate by — the poster is organised that way and so is
-            the walk — so it appears only when the results actually carry one. */}
-        {corridors.length > 1 ? (
+        {refinements.length > 1 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.lg }}
           >
-            {corridors.map((c) => {
-              const active = corridor === c.slug;
-              return (
-                <Pressable
-                  key={c.slug}
-                  onPress={() => {
-                    Haptics.selectionAsync().catch(() => {});
-                    setCorridor(active ? null : c.slug);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={c.name}
-                  style={{
-                    backgroundColor: active ? c.color : "transparent",
-                    borderColor: c.color,
-                    borderWidth: 1,
-                    borderRadius: radius.pill,
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  {!active ? (
-                    <View
-                      style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.color }}
-                    />
-                  ) : null}
-                  <Text
-                    style={[type.label, { color: active ? inkOn(c.color) : theme.text }]}
-                  >
-                    {c.name.replace(" Corridor", "")}
-                    {"  "}
-                    {corridorGroups.find((g) => g.corridor.slug === c.slug)?.events.length ?? 0}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {refinements.map((r) => (
+              <Chip
+                key={`${r.axis}:${r.value}`}
+                label={`${r.label}  ${r.count}`}
+                active={refine?.axis === r.axis && refine.value === r.value}
+                onPress={() =>
+                  setRefine(
+                    refine?.axis === r.axis && refine.value === r.value
+                      ? null
+                      : { axis: r.axis, value: r.value },
+                  )
+                }
+              />
+            ))}
           </ScrollView>
         ) : null}
       </View>
 
       <View style={{ flex: 1, marginTop: space.sm }}>
-        {status === "loading" ? (
-          <Loading />
-        ) : status === "error" ? (
-          <ErrorState message={error.message} onRetry={retry} />
-        ) : (
-          <>
-            <EventMap
-              // A chosen corridor really filters: only its venues are drawn,
-              // and clearing it brings every one back. Fading the rest looked
-              // like the same thing and was not — react-native-maps caches a
-              // marker's image once it stops tracking, so a faded pin could
-              // stay faded after the filter was cleared and read as deleted.
-              pins={visiblePins}
-              routes={routes}
-              focusKey={corridor ?? "all"}
-              activeRoute={corridor}
-              focusRegion={focusRegion}
-              selectedVenueId={selectedVenueId}
-              onSelectVenue={setSelectedVenueId}
-              showUserLocation={locationGranted}
-              userCoords={coords}
-            />
+        <EventMap
+          pins={pins}
+          routes={routes}
+          activeRoute={corridor}
+          focusRegion={focusRegion}
+          focusKey={focusKey}
+          selectedVenueId={selectedVenueId}
+          onSelectVenue={setSelectedVenueId}
+          showUserLocation={locationGranted}
+          userCoords={coords}
+        />
 
-            {eventCount === 0 ? (
-              <View
-                style={{
-                  position: "absolute",
-                  left: space.lg,
-                  right: space.lg,
-                  bottom: space.lg,
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  padding: space.lg,
-                }}
-              >
-                <Text style={{ color: theme.text, fontSize: 15, fontWeight: "600" }}>
-                  Nothing on the map for that
-                </Text>
-                <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }}>
-                  Try a wider date range or clear the category.
-                </Text>
-              </View>
-            ) : null}
+        {pins.length === 0 ? (
+          <View
+            style={{
+              position: "absolute",
+              left: space.lg, right: space.lg, bottom: space.lg,
+              backgroundColor: theme.surface,
+              borderColor: theme.border, borderWidth: 1,
+              padding: space.lg,
+            }}
+          >
+            <Text style={[type.heading, { color: theme.text }]}>Nothing here with that filter</Text>
+            <Text style={[type.meta, { color: theme.textMuted, marginTop: 2 }]}>
+              Clear it, or pick another corridor.
+            </Text>
+          </View>
+        ) : null}
 
-            {/* Picking a corridor lists everything on it, mapped or not.
-                Thirty-seven of the fifty ArtNight venues have no coordinates,
-                and a map that silently drops them tells someone a ten-stop
-                street has two. The pin icon marks the ones that can be found
-                on the map; the rest carry the street they sit on. */}
-            {openGroup && !selected ? (
-              <View
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  maxHeight: "52%",
-                  backgroundColor: theme.bg,
-                  borderTopWidth: 2,
-                  borderColor: openGroup.corridor.color,
-                  paddingBottom: insets.bottom,
-                }}
-              >
-                <View
-                  style={{
-                    backgroundColor: openGroup.corridor.color,
-                    paddingVertical: space.sm,
-                    paddingHorizontal: space.lg,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: space.md,
+        {/* A chosen corridor lists everything on it, so a stop is never hidden
+            just because the map could not place it. */}
+        {openGroup && !selected ? (
+          <View
+            style={{
+              position: "absolute", left: 0, right: 0, bottom: 0,
+              maxHeight: "52%",
+              backgroundColor: theme.bg,
+              borderTopWidth: 2, borderColor: openGroup.corridor.color,
+              paddingBottom: insets.bottom,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: openGroup.corridor.color,
+                paddingVertical: space.sm, paddingHorizontal: space.lg,
+                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+              }}
+            >
+              <Text style={[type.heading, { color: inkOn(openGroup.corridor.color), flex: 1 }]}>
+                {openGroup.corridor.name}
+              </Text>
+              <Text style={[type.label, { color: inkOn(openGroup.corridor.color) }]}>
+                {openGroup.events.length} stops
+              </Text>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingBottom: space.lg }}>
+              {openGroup.events.map((e) => (
+                <Pressable
+                  key={e.id}
+                  onPress={() => {
+                    Haptics.selectionAsync().catch(() => {});
+                    if (e.venue.lat !== null) setSelectedVenueId(e.venue.id);
+                    else router.push(`/e/${e.slug}`);
                   }}
-                >
-                  <Text style={[type.heading, { color: inkOn(openGroup.corridor.color), flex: 1 }]}>
-                    {openGroup.corridor.name}
-                  </Text>
-                  <Text style={[type.label, { color: inkOn(openGroup.corridor.color) }]}>
-                    {openGroup.events.length} stops · {openGroup.pinned} mapped
-                  </Text>
-                </View>
-
-                <ScrollView contentContainerStyle={{ paddingBottom: space.lg }}>
-                  {openGroup.events.map((e) => {
-                    const mapped = e.venue.lat !== null && e.venue.lng !== null;
-                    return (
-                      <Pressable
-                        key={e.id}
-                        onPress={() => {
-                          Haptics.selectionAsync().catch(() => {});
-                          // A mapped stop is shown where it is; one without
-                          // coordinates opens its page, which is all we can
-                          // honestly offer.
-                          if (mapped) setSelectedVenueId(e.venue.id);
-                          else router.push(`/e/${e.slug}`);
-                        }}
-                        accessibilityRole="button"
-                        style={({ pressed }) => ({
-                          backgroundColor: pressed ? theme.surface : "transparent",
-                          borderTopColor: theme.border,
-                          borderTopWidth: 1,
-                          paddingVertical: space.md,
-                          paddingHorizontal: space.lg,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: space.md,
-                        })}
-                      >
-                        <View style={{ flex: 1, gap: 2 }}>
-                          <Text style={[type.heading, { color: theme.text }]} numberOfLines={1}>
-                            {e.venue.name}
-                          </Text>
-                          <Text style={[type.meta, { color: theme.textMuted }]} numberOfLines={1}>
-                            {e.venue.address1}
-                          </Text>
-                        </View>
-                        <Ionicons
-                          name={mapped ? "location" : "chevron-forward"}
-                          size={15}
-                          color={mapped ? openGroup.corridor.color : theme.border}
-                        />
-                      </Pressable>
-                    );
+                  accessibilityRole="button"
+                  style={({ pressed }) => ({
+                    backgroundColor: pressed ? theme.surface : "transparent",
+                    borderTopColor: theme.border, borderTopWidth: 1,
+                    paddingVertical: space.md, paddingHorizontal: space.lg,
+                    flexDirection: "row", alignItems: "center", gap: space.md,
                   })}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            {selected ? (
-              <View
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  maxHeight: "55%",
-                  backgroundColor: theme.bg,
-                  borderTopWidth: 1,
-                  borderColor: theme.border,
-                  borderTopLeftRadius: 16,
-                  borderTopRightRadius: 16,
-                  paddingBottom: insets.bottom,
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "flex-start",
-                    gap: space.md,
-                    padding: space.lg,
-                    paddingBottom: space.md,
-                  }}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: theme.text, fontSize: 17, fontWeight: "700" }}>
-                      {selected.venue.name}
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[type.heading, { color: theme.text }]} numberOfLines={1}>
+                      {e.venue.name}
                     </Text>
-                    <Text style={{ color: theme.textMuted, fontSize: 13, marginTop: 2 }}>
-                      {selected.venue.neighborhood
-                        ? `${selected.venue.neighborhood} · ${selected.venue.address1}`
-                        : selected.venue.address1}
+                    <Text style={[type.meta, { color: theme.textMuted }]} numberOfLines={1}>
+                      {e.venue.address1}
                     </Text>
                   </View>
-                  <Pressable
-                    onPress={() => setSelectedVenueId(null)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Close venue details"
-                    hitSlop={10}
-                  >
-                    <Ionicons name="close" size={22} color={theme.textMuted} />
-                  </Pressable>
-                </View>
+                  <Ionicons name="chevron-forward" size={15} color={theme.border} />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
-                <ScrollView
-                  contentContainerStyle={{ paddingBottom: space.lg }}
-                >
-                  {selected.events.map((event, i) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      showDate={preset === "ALL"}
-                      index={i}
-                    />
-                  ))}
-                </ScrollView>
+        {selected ? (
+          <View
+            style={{
+              position: "absolute", left: 0, right: 0, bottom: 0,
+              maxHeight: "48%",
+              backgroundColor: theme.bg,
+              borderTopWidth: 1, borderColor: theme.border,
+              paddingBottom: insets.bottom,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row", alignItems: "flex-start", gap: space.md,
+                padding: space.lg, paddingBottom: space.md,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[type.title, { color: theme.text }]}>{selected.venue.name}</Text>
+                <Text style={[type.meta, { color: theme.textMuted, marginTop: 2 }]}>
+                  {selected.venue.address1}
+                  {selected.venue.kind ? ` · ${selected.venue.kind}` : ""}
+                </Text>
               </View>
-            ) : null}
-          </>
-        )}
+              <Pressable
+                onPress={() => setSelectedVenueId(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={10}
+              >
+                <Ionicons name="close" size={22} color={theme.textMuted} />
+              </Pressable>
+            </View>
+            <Pressable
+              onPress={() => router.push(`/e/${selected.events[0]!.slug}`)}
+              accessibilityRole="button"
+              style={({ pressed }) => ({
+                marginHorizontal: space.lg,
+                backgroundColor: pressed ? "#a8db55" : theme.accent,
+                borderRadius: radius.control,
+                paddingVertical: 13,
+                alignItems: "center",
+              })}
+            >
+              <Text style={[type.label, { color: theme.accentInk }]}>Open this stop</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     </View>
   );
