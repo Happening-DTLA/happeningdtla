@@ -64,8 +64,18 @@ export async function GET() {
     database = { ok: false, ms: Date.now() - started, error: safeMessage(err) };
   }
 
+  // The literal key names the runtime can see, quoted so a trailing space or a
+  // stray invisible character is visible rather than inferred. Names only — a
+  // variable whose name is subtly wrong reads as "set" in every dashboard and
+  // as missing to the code, and nothing else distinguishes the two.
+  const keys = Object.keys(process.env)
+    .filter((k) => /^(DATABASE|STRIPE|CLERK|RESEND|NEXT_PUBLIC|ADMIN|ALLOWED|SUPABASE|SHADOW)/i.test(k))
+    .sort()
+    .map((k) => JSON.stringify(k));
+
   return ok({
     ok: database.ok,
+    keys,
     region: process.env.VERCEL_REGION ?? null,
     commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
     database,
