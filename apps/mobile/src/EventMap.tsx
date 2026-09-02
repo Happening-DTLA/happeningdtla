@@ -79,11 +79,14 @@ const VenueMarker = memo(function VenueMarker({
   pin,
   selected,
   labelled,
+  hidden,
   onPress,
 }: {
   pin: VenuePin;
   selected: boolean;
   labelled: boolean;
+  /** Filtered out. Still mounted — see the note on EventMap's `pins`. */
+  hidden: boolean;
   onPress: (venueId: string) => void;
 }) {
   // The corridor's own colour, so the map and the printed key agree at a
@@ -97,6 +100,13 @@ const VenueMarker = memo(function VenueMarker({
     <Marker
       coordinate={{ latitude: pin.venue.lat, longitude: pin.venue.lng }}
       onPress={() => onPress(pin.venue.id)}
+      /**
+       * Zero alpha is doing two jobs. It hides a pin the filter excludes, and
+       * because UIKit does not hit-test a view below one percent opacity, the
+       * tap falls through to the map and dismisses the sheet — which is what
+       * tapping empty space there should do anyway.
+       */
+      opacity={hidden ? 0 : 1}
       /**
        * Negative on purpose: on iOS this becomes the annotation layer's
        * zPosition, and MapKit puts its own blue dot at zero, so any positive
@@ -191,6 +201,7 @@ const VenueMarker = memo(function VenueMarker({
 
 export function EventMap({
   pins,
+  shownIds,
   selectedVenueId,
   onSelectVenue,
   showUserLocation,
@@ -201,7 +212,26 @@ export function EventMap({
   routes = [],
   activeRoute = null,
 }: {
+  /**
+   * Every pin for the night, always, in a stable order — never the filtered
+   * subset, and this is load-bearing rather than a preference.
+   *
+   * react-native-maps ships no Fabric components, so on the New Architecture
+   * every MapView and Marker here is driven by RCTLegacyViewManagerInterop-
+   * ComponentView. That class only mounts a child directly when the index is
+   * an append; anything else is queued and replayed later in finalizeUpdates,
+   * which runs its queued INSERTIONS BEFORE its removals. Hand it a
+   * transaction that both drops and adds children — which is precisely what
+   * filtering fifty-six pins down to five is — and it replays an insertion at
+   * an index the list no longer has. That is a native NSRangeException, and
+   * the app is gone: no red box, straight to the home screen.
+   *
+   * So the child list is fixed at mount and never changes again. Filtering is
+   * expressed in props instead.
+   */
   pins: VenuePin[];
+  /** Which of them the current filter admits. The rest render invisible. */
+  shownIds: ReadonlySet<string>;
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string | null) => void;
   showUserLocation: boolean;
@@ -243,10 +273,14 @@ export function EventMap({
    * boxes are still measured where the pins really are — only the DECISION to
    * recompute is quantised, never the geometry.
    */
+  // Only what is on show competes for a label; a hidden pin winning a slot
+  // would leave a gap where a name should be.
+  const shown = useMemo(() => pins.filter((p) => shownIds.has(p.venue.id)), [pins, shownIds]);
+
   const labelled = useMemo(
-    () => placeLabels({ pins, region: viewport.current, size, selectedVenueId }),
+    () => placeLabels({ pins: shown, region: viewport.current, size, selectedVenueId }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pins, size.width, size.height, selectedVenueId, settled],
+    [shown, size.width, size.height, selectedVenueId, settled],
   );
 
   // Animated rather than re-mounted: `initialRegion` only applies once, so a
@@ -335,6 +369,7 @@ export function EventMap({
             pin={pin}
             selected={pin.venue.id === selectedVenueId}
             labelled={labelled.has(pin.venue.id)}
+            hidden={!shownIds.has(pin.venue.id)}
             onPress={onSelectVenue}
           />
         ))}

@@ -106,8 +106,13 @@ export default function MapScreen() {
     [refine, corridor],
   );
 
+  // Every pin the night has. This is what the map renders — always, in full.
+  // EventMap explains why the child list must never change size.
   const allPins = useMemo(() => groupEventsByVenue(events), [events]);
+  // What the filter admits. Used for framing, for the empty state, and to tell
+  // the map which pins to draw; never to decide which ones exist.
   const pins = useMemo(() => groupEventsByVenue(events.filter(matches)), [events, matches]);
+  const shownIds = useMemo(() => new Set(pins.map((p) => p.venue.id)), [pins]);
 
   const corridors = useMemo(
     () => groupByCorridor(events).map((g) => ({ ...g.corridor, stops: g.events.length })),
@@ -216,7 +221,8 @@ export default function MapScreen() {
 
       <View style={{ flex: 1, marginTop: space.sm }}>
         <EventMap
-          pins={pins}
+          pins={allPins}
+          shownIds={shownIds}
           routes={routes}
           activeRoute={corridor}
           focusRegion={focusRegion}

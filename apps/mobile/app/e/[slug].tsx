@@ -273,6 +273,7 @@ export default function EventScreen() {
               <View style={{ height: 160 }}>
                 <EventMap
                   pins={[{ venue: { ...venue, lat: venue.lat, lng: venue.lng }, events: [event] }]}
+                  shownIds={new Set([venue.id])}
                   selectedVenueId={null}
                   onSelectVenue={() => {}}
                   showUserLocation={false}

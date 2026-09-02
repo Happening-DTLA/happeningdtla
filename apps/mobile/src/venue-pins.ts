@@ -44,7 +44,11 @@ export function groupEventsByVenue(events: ApiEventSummary[]): VenuePin[] {
     );
   }
 
-  return [...byVenue.values()];
+  // Sorted by id, not left in encounter order. These become the children of a
+  // native map view whose child list must not be reordered between renders
+  // (see EventMap), and encounter order is the API's order — which a refetch
+  // is free to change.
+  return [...byVenue.values()].sort((a, b) => a.venue.id.localeCompare(b.venue.id));
 }
 
 /** How many events the map is actually showing, for the empty state. */
