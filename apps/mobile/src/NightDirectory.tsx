@@ -83,7 +83,20 @@ function Destination({
   );
 }
 
-export function NightDirectory({ night, onRetry }: { night: ApiNight; onRetry: () => void }) {
+export function NightDirectory({
+  night,
+  onRetry,
+  topInset = 0,
+}: {
+  night: ApiNight;
+  onRetry: () => void;
+  /**
+   * Room for the status bar. Passed by the tab, which draws no navigation bar
+   * of its own and would otherwise start its headline underneath the clock;
+   * left at zero by /n/[slug], where the stack header has already reserved it.
+   */
+  topInset?: number;
+}) {
   const [only, setOnly] = useState<string | null>(null);
   // One axis, deliberately. Kind and tag are different questions, but stacking
   // two filter rows on top of the corridor row turns the top of the screen
@@ -137,7 +150,7 @@ export function NightDirectory({ night, onRetry }: { night: ApiNight; onRetry: (
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ paddingBottom: space.xxl * 2 }}
+      contentContainerStyle={{ paddingTop: topInset, paddingBottom: space.xxl * 2 }}
       refreshControl={
         <RefreshControl refreshing={false} onRefresh={onRetry} tintColor={theme.textMuted} />
       }

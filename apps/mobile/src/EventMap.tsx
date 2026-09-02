@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import MapView, { Marker, Polyline, type Region } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, inkOn, withAlpha } from "@/theme";
 import type { EventCategory } from "@dtlahappening/core";
-import type { VenuePin } from "@/venue-pins";
+import { placeLabels, type MapRegion, type VenuePin } from "@/venue-pins";
 
 /**
  * Downtown Los Angeles. The entire product is a few square miles, so the map
@@ -44,7 +44,12 @@ export type MapRoute = { slug: string; color: string; path: number[][][] };
 
 
 /**
- * A venue pin.
+ * A venue pin, in one of two states.
+ *
+ * Most of the time it is a dot. A dot is 16 points across, says which corridor
+ * it belongs to by its colour, and — crucially — leaves the street underneath
+ * legible and the blue location dot visible. Only pins that won a label in
+ * `placeLabels` open up into the full pill with a name.
  *
  * react-native-maps rasterises a custom marker view into an image. Leaving
  * `tracksViewChanges` on re-rasterises every frame and the map visibly
@@ -56,10 +61,12 @@ export type MapRoute = { slug: string; color: string; path: number[][][] };
 function VenueMarker({
   pin,
   selected,
+  labelled,
   onPress,
 }: {
   pin: VenuePin;
   selected: boolean;
+  labelled: boolean;
   onPress: (venueId: string) => void;
 }) {
   const [tracks, setTracks] = useState(true);
@@ -67,6 +74,9 @@ function VenueMarker({
   // The corridor's own colour, so the map and the printed key agree at a
   // glance. Falls back to the brand accent for venues outside a corridor.
   const tint = pin.venue.corridor?.color ?? theme.accent;
+  // Landmarks read a size up even without a name, and a dot carrying a count
+  // needs the room for it.
+  const SIZE = pin.events.length > 1 ? 20 : pin.venue.isLandmark ? 18 : 14;
 
   useEffect(() => {
     setTracks(true);
@@ -76,58 +86,98 @@ function VenueMarker({
     // that image once tracking stops, so anything affecting its appearance has
     // to be listed here or the map keeps showing a stale one — which is how a
     // landmark ends up rendered as an anonymous count.
-  }, [selected, tint, pin.venue.isLandmark, pin.venue.name, pin.events.length, pin.events[0]?.category]);
+    // `labelled` belongs here for the same reason: a pin that just earned or
+    // lost its name has to be redrawn, or the map keeps the cached image and
+    // shows a dot where a label should be.
+  }, [selected, labelled, tint, pin.venue.isLandmark, pin.venue.name, pin.events.length, pin.events[0]?.category]);
 
   return (
     <Marker
       coordinate={{ latitude: pin.venue.lat, longitude: pin.venue.lng }}
       onPress={() => onPress(pin.venue.id)}
       tracksViewChanges={tracks}
-      zIndex={selected ? 3 : pin.venue.isLandmark ? 2 : 1}
+      /**
+       * Negative on purpose, and this is the whole fix for a location dot
+       * nobody could see. On iOS this becomes the annotation layer's
+       * zPosition, and MapKit adds its own blue dot at zero — so any positive
+       * value here puts fifty-six venue pins in front of the one marker that
+       * says where the person actually is. Everything unselected now sits
+       * behind it. A pin you have deliberately tapped goes in front, because
+       * at that point it is what you asked to look at.
+       */
+      zIndex={selected ? 2 : labelled ? -1 : -2}
       // The default callout is a system bubble that cannot be themed and
       // duplicates the sheet below, so the marker owns the whole interaction.
       stopPropagation
     >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-          backgroundColor: selected ? tint : theme.surface,
-          borderColor: tint,
-          borderWidth: 1,
-          borderRadius: 999,
-          paddingVertical: 6,
-          paddingHorizontal: 10,
-          // Pins sit on a light map; without a shadow the dark pill disappears
-          // against dark buildings at zoom.
-          shadowColor: "#000",
-          shadowOpacity: 0.35,
-          shadowRadius: 4,
-          shadowOffset: { width: 0, height: 2 },
-          elevation: 4,
-        }}
-      >
-        <Ionicons
-          name={CATEGORY_ICON[pin.events[0]?.category ?? "OTHER"]}
-          size={13}
-          color={selected ? inkOn(tint) : tint}
-        />
-        {/* Landmarks carry their name; everything else carries its count.
-            Naming all fifty would turn the map into a wall of labels and hide
-            the streets underneath, which are the thing being navigated. */}
-        <Text
-          numberOfLines={1}
+      {labelled || selected ? (
+        <View
           style={{
-            color: selected ? inkOn(tint) : theme.text,
-            fontSize: 12,
-            fontWeight: "700",
-            maxWidth: pin.venue.isLandmark ? 132 : undefined,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            backgroundColor: selected ? tint : theme.surface,
+            borderColor: tint,
+            borderWidth: 1,
+            borderRadius: 999,
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            // Pins sit on a light map; without a shadow the dark pill
+            // disappears against dark buildings at zoom.
+            shadowColor: "#000",
+            shadowOpacity: 0.35,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 4,
           }}
         >
-          {pin.venue.isLandmark ? pin.venue.name : pin.events.length}
-        </Text>
-      </View>
+          <Ionicons
+            name={CATEGORY_ICON[pin.events[0]?.category ?? "OTHER"]}
+            size={13}
+            color={selected ? inkOn(tint) : tint}
+          />
+          <Text
+            numberOfLines={1}
+            style={{
+              color: selected ? inkOn(tint) : theme.text,
+              fontSize: 12,
+              fontWeight: "700",
+              maxWidth: 150,
+            }}
+          >
+            {pin.venue.name}
+          </Text>
+        </View>
+      ) : (
+        /* The quiet state. Small enough to read as a point on a street rather
+           than a thing sitting on top of one, and small enough that fifty of
+           them still leave a map underneath. */
+        <View
+          style={{
+            width: SIZE,
+            height: SIZE,
+            borderRadius: SIZE / 2,
+            backgroundColor: tint,
+            borderColor: theme.bg,
+            borderWidth: 2,
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: "#000",
+            shadowOpacity: 0.4,
+            shadowRadius: 3,
+            shadowOffset: { width: 0, height: 1 },
+            elevation: 3,
+          }}
+        >
+          {/* A venue running more than one thing says so; the rest stay plain,
+              because a "1" on fifty dots is fifty ones. */}
+          {pin.events.length > 1 ? (
+            <Text style={{ color: inkOn(tint), fontSize: 10, fontWeight: "800" }}>
+              {pin.events.length}
+            </Text>
+          ) : null}
+        </View>
+      )}
     </Marker>
   );
 }
@@ -166,6 +216,19 @@ export function EventMap({
 }) {
   const mapRef = useRef<MapView>(null);
 
+  // Labels are decided in screen space, so both the viewport and the size of
+  // the view it is drawn into have to be known. The region is tracked on
+  // change-COMPLETE rather than continuously: recomputing fifty boxes on every
+  // frame of a pan would be work thrown away sixty times a second, and the
+  // labels settling as the map lands reads as intentional.
+  const [viewport, setViewport] = useState<MapRegion>(region);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  const labelled = useMemo(
+    () => placeLabels({ pins, region: viewport, size, selectedVenueId }),
+    [pins, viewport, size, selectedVenueId],
+  );
+
   // Animated rather than re-mounted: `initialRegion` only applies once, so a
   // changed region prop would do nothing at all.
   //
@@ -194,7 +257,13 @@ export function EventMap({
     );
 
   return (
-    <View style={{ flex: 1 }}>
+    <View
+      style={{ flex: 1 }}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setSize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+      }}
+    >
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
@@ -210,6 +279,7 @@ export function EventMap({
         toolbarEnabled={false}
         // Tapping the map itself dismisses the sheet, the way a modal does.
         onPress={() => onSelectVenue(null)}
+        onRegionChangeComplete={setViewport}
       >
         {/* The poster's coloured lines, over a real map instead of a diagram.
             Drawn before the markers so pins sit on top and stay tappable.
@@ -240,6 +310,7 @@ export function EventMap({
             key={pin.venue.id}
             pin={pin}
             selected={pin.venue.id === selectedVenueId}
+            labelled={labelled.has(pin.venue.id)}
             onPress={onSelectVenue}
           />
         ))}

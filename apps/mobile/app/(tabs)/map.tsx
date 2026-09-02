@@ -90,18 +90,38 @@ export default function MapScreen() {
     setSelectedVenueId(null);
   }, [corridor, refine]);
 
+  // Watched, not sampled once. This is a map for walking a mile of Downtown
+  // over an evening; a position fixed at the moment the tab opened is wrong by
+  // the second block, and "centre on me" would keep returning to where the
+  // person used to be. Ten metres is about a stride's worth of doorway.
   useEffect(() => {
     let active = true;
+    let subscription: Location.LocationSubscription | null = null;
+
     (async () => {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!active || permission.status !== "granted") return;
       setLocationGranted(true);
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      if (active) setCoords({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
+        (position) => {
+          if (active) {
+            setCoords({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            });
+          }
+        },
+      );
+      if (!active) subscription.remove();
     })().catch(() => {
       /* denied or unavailable — the map is already centred on Downtown */
     });
-    return () => { active = false; };
+
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
   }, []);
 
   if (status === "loading") return <Loading />;

@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { RefreshControl, ScrollView } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
 import { theme } from "@/theme";
@@ -17,6 +18,8 @@ import { NightDirectory } from "@/NightDirectory";
  * rather than on an invitation to go and find it.
  */
 export default function ArtNightScreen() {
+  // The tab shows no header, so nothing has reserved the status bar for us.
+  const insets = useSafeAreaInsets();
   const fetcher = useCallback((s: AbortSignal) => api.upcomingNight(s), []);
   const { status, data: night, error, retry } = useAsync(fetcher);
 
@@ -25,7 +28,7 @@ export default function ArtNightScreen() {
     return (
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.bg }}
-        contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingTop: insets.top }}
         refreshControl={
           <RefreshControl refreshing={false} onRefresh={retry} tintColor={theme.textMuted} />
         }
@@ -39,7 +42,7 @@ export default function ArtNightScreen() {
     return (
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.bg }}
-        contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", paddingTop: insets.top }}
         refreshControl={
           <RefreshControl refreshing={false} onRefresh={retry} tintColor={theme.textMuted} />
         }
@@ -52,5 +55,5 @@ export default function ArtNightScreen() {
     );
   }
 
-  return <NightDirectory night={night} onRetry={retry} />;
+  return <NightDirectory night={night} onRetry={retry} topInset={insets.top} />;
 }
