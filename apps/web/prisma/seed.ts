@@ -400,7 +400,12 @@ async function main() {
       date: new Date("2026-09-03T00:00:00Z"),
       isPublished: true,
       description:
-        "Explore galleries, restaurants, bars, performance spaces and cultural destinations across Downtown LA. Fifty destinations, eight corridors, 6pm until late.",
+        // No counts in the prose. The directory computes them from the night
+        // itself and prints them directly above this line, so a number written
+        // in here only ever survives until the next sync — it was already
+        // reading "fifty destinations, eight corridors" under a heading
+        // saying 56 across 9.
+        "Explore galleries, restaurants, bars, performance spaces and cultural destinations across Downtown LA. Doors open at 6pm and stay open late.",
     },
   });
 

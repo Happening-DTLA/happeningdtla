@@ -4,8 +4,29 @@
     {
       "name": "dtlahappening",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "3100"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "3100"
+      ],
       "port": 3100
+    },
+    {
+      "name": "mobile-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start",
+        "--workspace",
+        "apps/mobile",
+        "--",
+        "--web",
+        "--port",
+        "8082"
+      ],
+      "port": 8082
     }
   ]
 }

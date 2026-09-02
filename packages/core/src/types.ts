@@ -104,6 +104,46 @@ export const VENUE_TAGS = ["Kid Friendly", "21+", "After Party", "Rooftop Lounge
  */
 export const shortNightName = (name: string) => name.split("—")[0].trim();
 
+/**
+ * The second line under a destination's name.
+ *
+ * The organisers' feed carries a street address for only a third of the
+ * venues; for the rest the address field just repeats the venue's own name, so
+ * rendering it produced rows reading "The Last Bookstore / The Last Bookstore"
+ * — which reads as a bug in the app rather than a gap in the data. Where there
+ * is no real address, the venue's kind is the useful thing to say instead, and
+ * where there is neither, saying nothing beats saying the name twice.
+ */
+const KIND_LABELS: Record<string, string> = {
+  "Art Galleries": "Gallery",
+  "Food and Drink": "Food & drink",
+  Museums: "Museum",
+  Shopping: "Shopping",
+  "Special Events": "Special event",
+  Transportation: "Getting around",
+  Highlights: "Highlight",
+};
+
+export function venueSubtitle(venue: {
+  name: string;
+  address1: string | null;
+  kind: string | null;
+}): string | null {
+  // Compared on letters and digits alone, so "Emerging gallery" against
+  // "Emerging Gallery" and "The Broad." against "The Broad" both count as the
+  // same string rather than sneaking through on punctuation.
+  const key = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const address = venue.address1?.trim();
+  if (address) {
+    const a = key(address);
+    const n = key(venue.name);
+    const echoes = a === n || (a.length > 0 && (n.includes(a) || a.includes(n)));
+    if (!echoes) return address;
+  }
+  if (!venue.kind) return null;
+  return KIND_LABELS[venue.kind] ?? venue.kind;
+}
+
 export interface ApiNightSummary {
   id: string;
   slug: string;

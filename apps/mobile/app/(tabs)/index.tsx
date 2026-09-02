@@ -1,21 +1,22 @@
 import { useCallback } from "react";
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { RefreshControl, ScrollView } from "react-native";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
-import { theme, space, type } from "@/theme";
-import { EmptyState, ErrorState, Loading, NightCard } from "@/components";
-import { countVenues, groupByCorridor } from "@/corridors";
+import { theme } from "@/theme";
+import { EmptyState, ErrorState, Loading } from "@/components";
+import { NightDirectory } from "@/NightDirectory";
 
 /**
- * Explore. One night, and the way into it.
+ * Art Night. The home of the app, and the whole of it.
  *
- * This app is ArtNight, so the screen is not a feed. The night is the product;
- * anything else on here — an "also on in Downtown" list, a category filter
- * over events that are all the same kind of thing — was scaffolding from when
- * this was a general events app, and it made the one thing that matters
- * compete with noise for attention.
+ * This used to be an Explore tab: a card for the night, a summary of its
+ * corridors, and a tap to reach the directory. On an app about one night that
+ * middle step had nothing to say — every route out of it led to the same
+ * screen, so it read as a landing page in front of the product. The tab is now
+ * the directory itself, which also means the app opens on the list of doors
+ * rather than on an invitation to go and find it.
  */
-export default function ExploreScreen() {
+export default function ArtNightScreen() {
   const fetcher = useCallback((s: AbortSignal) => api.upcomingNight(s), []);
   const { status, data: night, error, retry } = useAsync(fetcher);
 
@@ -25,63 +26,31 @@ export default function ExploreScreen() {
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.bg }}
         contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={retry} tintColor={theme.textMuted} />}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={retry} tintColor={theme.textMuted} />
+        }
       >
         <ErrorState message={error.message} onRetry={retry} />
       </ScrollView>
     );
   }
 
-  const groups = groupByCorridor(night.events);
-  const stops = countVenues(night.events);
-
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.bg }}
-      contentContainerStyle={{ padding: space.lg, paddingBottom: space.xxl * 2, gap: space.lg }}
-      refreshControl={<RefreshControl refreshing={false} onRefresh={retry} tintColor={theme.textMuted} />}
-    >
-      {night.events.length === 0 ? (
+  if (night.events.length === 0) {
+    return (
+      <ScrollView
+        style={{ flex: 1, backgroundColor: theme.bg }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={retry} tintColor={theme.textMuted} />
+        }
+      >
         <EmptyState
           title="No night scheduled"
-          body="ArtNight runs the first Thursday of every month. Check back soon."
+          body="Art Night runs the first Thursday of every month. Check back soon."
         />
-      ) : (
-        <>
-          <NightCard night={night} />
+      </ScrollView>
+    );
+  }
 
-          {/* The corridors, as a summary rather than a control. Tapping the
-              card above opens the directory where they become navigable. */}
-          <View style={{ gap: space.sm }}>
-            <Text style={[type.label, { color: theme.textMuted }]}>
-              {stops} stops across {groups.length} corridors
-            </Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
-              {groups.map((g) => (
-                <View
-                  key={g.corridor.slug}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 7,
-                    borderColor: theme.border,
-                    borderWidth: 1,
-                    paddingVertical: 6,
-                    paddingHorizontal: 11,
-                  }}
-                >
-                  <View
-                    style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: g.corridor.color }}
-                  />
-                  <Text style={[type.label, { color: theme.textMuted }]}>
-                    {g.corridor.name.replace(" Corridor", "")}  {g.events.length}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </>
-      )}
-    </ScrollView>
-  );
+  return <NightDirectory night={night} onRetry={retry} />;
 }

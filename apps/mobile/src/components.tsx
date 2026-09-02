@@ -10,14 +10,12 @@ import Animated, {
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
-import type { ApiEventSummary, ApiNight, EventCategory } from "@dtlahappening/core";
+import type { ApiEventSummary, EventCategory } from "@dtlahappening/core";
 import {
   CATEGORY_LABELS,
-  formatCalendarDate,
   formatCents,
   formatDate,
   formatTimeRange,
-  shortNightName,
 } from "@dtlahappening/core";
 import { theme, space, radius, type } from "./theme";
 import { motion, stagger, useReducedMotion } from "./motion";
@@ -171,88 +169,6 @@ export function CategoryChips({
         />
       ))}
     </ScrollView>
-  );
-}
-
-/**
- * The city-wide night, as a poster.
- *
- * This is the one place in the app that shouts, and everything else is quiet so
- * that it can. The accent stops being a thin highlight and becomes what it is
- * on a real flyer — a second ink, laid down in a solid block with the type
- * knocked out of it.
- *
- * Art Night is a crawl: a dozen events across half a dozen venues in one
- * evening. Listed flat it reads as a dozen unrelated shows, which is the model
- * Eventbrite is stuck with and the thing this product exists to do better.
- */
-export function NightCard({ night }: { night: ApiNight }) {
-  const router = useRouter();
-  const venueCount = new Set(night.events.map((e) => e.venue.id)).size;
-  const neighborhoods = [
-    ...new Set(
-      night.events.map((e) => e.venue.neighborhood).filter((n): n is string => Boolean(n)),
-    ),
-  ];
-
-  return (
-    <Pressable
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        router.push(`/n/${night.slug}`);
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={`${shortNightName(night.name)}, ${night.events.length} events across ${venueCount} venues`}
-      style={({ pressed }) => ({ opacity: pressed ? 0.9 : 1 })}
-    >
-      {/* The masthead band: solid ink, type knocked out. */}
-      <View
-        style={{
-          backgroundColor: theme.accent,
-          paddingHorizontal: space.lg,
-          paddingVertical: space.sm,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <Text style={[type.label, { color: theme.accentInk }]}>City-wide night</Text>
-        <Text style={[type.label, { color: theme.accentInk }]}>
-          {night.events.length} events
-        </Text>
-      </View>
-
-      <View
-        style={{
-          borderColor: theme.accent,
-          borderWidth: 1,
-          borderTopWidth: 0,
-          paddingHorizontal: space.lg,
-          paddingTop: space.lg,
-          paddingBottom: space.md,
-          gap: space.sm,
-        }}
-      >
-        <Text style={[type.poster, { color: theme.text }]}>{shortNightName(night.name)}</Text>
-
-        <View style={{ height: 1, backgroundColor: theme.border }} />
-
-        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: space.md }}>
-          <Text style={[type.meta, { color: theme.text, flex: 1 }]}>
-            {formatCalendarDate(night.date)}
-          </Text>
-          <Text style={[type.meta, { color: theme.textMuted }]}>
-            {venueCount} {venueCount === 1 ? "venue" : "venues"}
-          </Text>
-        </View>
-
-        {neighborhoods.length > 0 ? (
-          <Text style={[type.label, { color: theme.textMuted }]} numberOfLines={1}>
-            {neighborhoods.join(" · ")}
-          </Text>
-        ) : null}
-      </View>
-    </Pressable>
   );
 }
 

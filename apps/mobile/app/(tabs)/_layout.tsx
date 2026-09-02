@@ -4,13 +4,15 @@ import { theme } from "@/theme";
 import { TICKETING_ENABLED } from "@/features";
 
 /**
- * Five tabs, matching what people already expect from a ticketing app.
- * Familiar navigation is also one less thing to explain to door staff.
+ * Art Night first, then the ways of moving around inside it.
  *
- * Map sits second, directly after Explore: it is a primary way to decide where
- * to go, not a detail view of a search. Buried behind a toggle it would not be
- * found, and five is the point where a tab bar starts to crowd — anything more
- * needs a different pattern.
+ * The first tab is the night's directory rather than an Explore feed: on an
+ * app about one night, a browse surface in front of the listing was a landing
+ * page for a destination one tap away.
+ *
+ * Map sits directly after it — a primary way to decide where to go, not a
+ * detail view of a search. Buried behind a toggle it would not be found, and
+ * five is the point where a tab bar starts to crowd.
  */
 export default function TabLayout() {
   return (
@@ -32,8 +34,12 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Explore",
-          tabBarIcon: ({ color, size }) => <Ionicons name="compass-outline" size={size} color={color} />,
+          title: "Art Night",
+          // No header: the screen opens on its own poster headline, and a nav
+          // bar saying "Art Night" directly above type saying "DTLA ArtNight"
+          // is a label for something already labelled.
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => <Ionicons name="moon-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
