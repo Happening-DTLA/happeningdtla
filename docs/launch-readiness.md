@@ -192,7 +192,7 @@ Postgres before the night** — that is still outstanding.
 
 ---
 
-## Owed: 37 venue addresses
+## ~~Owed: 37 venue addresses~~ — SOLVED 30 Aug
 
 The single highest-value thing that is not code.
 
@@ -208,7 +208,18 @@ Those 37 appear everywhere — under their corridor on the night screen, and in
 the corridor sheet on the map — with the street they sit on. What they cannot
 do is show as a pin.
 
-**What is needed:** a street address for each. From dtlaartnight.com, the
+**Solved.** The organisers' own map at maps.dtlaartnight.com publishes every
+venue with a full street address and real coordinates, and
+`scripts/sync-artnight.ts` now pulls from it. 56 stops, all pinned, under the
+organisers' official names — and the sync also caught that the printed map was
+already out of date: seven venues were live on it that the poster never listed.
+
+Corridors are derived rather than synced: their data has no notion of one, so
+each venue is assigned to whichever corridor street it actually sits nearest.
+The poster's organising idea survives without anyone hand-maintaining it.
+
+Original note, kept for context:
+**What was needed:** a street address for each. From dtlaartnight.com, the
 organisers directly, or the venues themselves. With addresses they geocode in
 minutes and light up on the map with no code change; `ART_NIGHT_VENUES` in
 `apps/web/prisma/art-night-2026-09.ts` already has the shape, and every
