@@ -82,7 +82,16 @@ export interface ApiVenue {
   corridor: ApiCorridor | null;
   /** Named on the map instead of shown as a dot. */
   isLandmark: boolean;
+  /** The venue's own site, when the organisers have one on file. */
+  website: string | null;
+  /** The organisers' own classification: "Art Galleries", "Food and Drink", … */
+  kind: string | null;
+  /** Curated flags: "21+", "Kid Friendly", "After Party", "Rooftop Lounge". */
+  tags: string[];
 }
+
+/** The flags a visitor filters by on the night, in the order they matter. */
+export const VENUE_TAGS = ["Kid Friendly", "21+", "After Party", "Rooftop Lounge"] as const;
 
 /**
  * A night's name without its month suffix.

@@ -73,6 +73,7 @@ export default function RootLayout() {
               thing a door person is looking at. */}
           <Stack.Screen name="door/scan" options={{ headerShown: false }} />
           <Stack.Screen name="saved" options={{ title: "Saved events" }} />
+          <Stack.Screen name="visitor-guide" options={{ title: "Visitor guide" }} />
         </Stack>
       </PaymentProvider>
     </LikesProvider>

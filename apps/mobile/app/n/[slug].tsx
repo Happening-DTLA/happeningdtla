@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import type { ApiEventSummary } from "@dtlahappening/core";
-import { formatCalendarDate, shortNightName } from "@dtlahappening/core";
+import { formatCalendarDate, shortNightName, VENUE_TAGS } from "@dtlahappening/core";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
 import { theme, space, radius, type, inkOn } from "@/theme";
@@ -73,11 +73,48 @@ function Destination({
 export default function NightScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const [only, setOnly] = useState<string | null>(null);
+  // One axis, deliberately. Kind and tag are different questions, but stacking
+  // two filter rows on top of the corridor row turns the top of the screen
+  // into a control panel — on a street corner people want one tap, not three.
+  const [refine, setRefine] = useState<{ axis: "kind" | "tag"; value: string } | null>(null);
+  const router = useRouter();
 
   const fetcher = useCallback((s: AbortSignal) => api.night(slug, s), [slug]);
   const { status, data: night, error, retry } = useAsync(fetcher, [slug]);
 
-  const groups = useMemo(() => groupByCorridor(night?.events ?? []), [night]);
+  // Only offer what the night actually contains, in a fixed order so the row
+  // does not reshuffle as venues come and go month to month.
+  const refinements = useMemo(() => {
+    const events = night?.events ?? [];
+    const kinds = new Map<string, number>();
+    const tags = new Map<string, number>();
+    for (const e of events) {
+      const k = e.venue.kind;
+      if (k) kinds.set(k, (kinds.get(k) ?? 0) + 1);
+      for (const t of e.venue.tags) tags.set(t, (tags.get(t) ?? 0) + 1);
+    }
+    const KIND_ORDER = ["Art Galleries", "Food and Drink", "Museums", "Shopping", "Special Events"];
+    return [
+      ...KIND_ORDER.filter((k) => kinds.has(k)).map((k) => ({
+        axis: "kind" as const, value: k, label: k.replace("Art Galleries", "Galleries").replace("Food and Drink", "Food & Drink"), count: kinds.get(k)!,
+      })),
+      ...VENUE_TAGS.filter((t) => tags.has(t)).map((t) => ({
+        axis: "tag" as const, value: t as string, label: t as string, count: tags.get(t)!,
+      })),
+    ];
+  }, [night]);
+
+  const matches = useCallback(
+    (e: ApiEventSummary) =>
+      !refine ||
+      (refine.axis === "kind" ? e.venue.kind === refine.value : e.venue.tags.includes(refine.value)),
+    [refine],
+  );
+
+  const groups = useMemo(
+    () => groupByCorridor((night?.events ?? []).filter(matches)),
+    [night, matches],
+  );
   const shown = only ? groups.filter((g) => g.corridor.slug === only) : groups;
 
   if (status === "loading") return <Loading />;
@@ -106,6 +143,22 @@ export default function NightScreen() {
           {groups.length === 1 ? "corridor" : "corridors"}
           {pinned < destinations ? ` · ${pinned} on the map` : ""}
         </Text>
+        <Pressable
+          onPress={() => router.push("/visitor-guide")}
+          accessibilityRole="button"
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.sm,
+            alignSelf: "flex-start",
+            paddingVertical: space.xs,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Ionicons name="information-circle-outline" size={16} color={theme.accent} />
+          <Text style={[type.label, { color: theme.accent }]}>Getting there & what to expect</Text>
+        </Pressable>
+
         {night.description ? (
           <Text style={[type.body, { color: theme.textMuted }]}>{night.description}</Text>
         ) : null}
@@ -180,6 +233,42 @@ export default function NightScreen() {
           );
         })}
       </ScrollView>
+
+      {refinements.length > 1 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.lg, paddingBottom: space.sm }}
+        >
+          {refinements.map((r) => {
+            const active = refine?.axis === r.axis && refine.value === r.value;
+            return (
+              <Pressable
+                key={`${r.axis}:${r.value}`}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  setRefine(active ? null : { axis: r.axis, value: r.value });
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`${r.label}, ${r.count} stops`}
+                style={{
+                  backgroundColor: active ? theme.text : "transparent",
+                  borderColor: active ? theme.text : theme.border,
+                  borderWidth: 1,
+                  borderRadius: radius.pill,
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                }}
+              >
+                <Text style={[type.label, { color: active ? theme.bg : theme.textMuted }]}>
+                  {r.label}  {r.count}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
 
       {shown.length === 0 ? (
         <EmptyState title="Nothing listed there" body="Pick another corridor, or show them all." />

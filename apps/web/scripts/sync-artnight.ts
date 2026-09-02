@@ -45,11 +45,26 @@ type Category =
 
 type Point = {
   name: string;
+  description?: string | null;
+  url?: string | null;
   location?: { search?: string };
   geojson?: { coordinates?: [number, number] };
   topic_category_id?: { $oid?: string };
+  tag_info?: { user_tags?: { _id?: { $oid?: string } }[] };
+  custom_information?: { custom_field_entries?: { field_id?: { $oid?: string }; field_value?: unknown }[] };
   active?: boolean;
 };
+
+/** The organisers' curated flags, by their id in the map. */
+const TAGS: Record<string, string> = {
+  "68644c6c40fb09540156ce5b": "After Party",
+  "68644c1440fb09540156ce5a": "Rooftop Lounge",
+  "6851b1a6fcbc822c2f8bda0b": "21+",
+  "6851bf4fd4ff3aa79862b2a9": "Kid Friendly",
+};
+
+/** Custom fields we understand. Anything else is ignored rather than guessed at. */
+const FIELD_WEBSITE = "6a1dfc4d6964911bfea5fb47";
 
 const slugify = (s: string) =>
   "an-" +
@@ -99,6 +114,8 @@ async function main() {
   const CORRIDOR_RADIUS = 140;
 
   let created = 0, updated = 0, pinned = 0, unassigned = 0;
+  const tagged = new Map<string, number>();
+  let withSite = 0, withBlurb = 0;
   for (const p of live) {
     const [lng, lat] = p.geojson!.coordinates!;
     const meta = CATEGORY[p.topic_category_id?.$oid ?? ""] ?? { label: "Other", category: "OTHER" as Category };
@@ -113,6 +130,19 @@ async function main() {
     }
     if (bestDistance > CORRIDOR_RADIUS) { corridorId = null; unassigned++; }
 
+    const tags = ((p.tag_info?.user_tags ?? [])
+      .map((t) => TAGS[t._id?.$oid ?? ""])
+      .filter(Boolean) as string[]);
+
+    // A website is on the point itself for some venues and in a custom field
+    // for others, depending on how it was entered. Take whichever is there.
+    const customWebsite = (p.custom_information?.custom_field_entries ?? [])
+      .find((e) => e.field_id?.$oid === FIELD_WEBSITE)?.field_value;
+    const website =
+      (typeof p.url === "string" && p.url.trim()) ||
+      (typeof customWebsite === "string" && customWebsite.trim()) ||
+      null;
+
     const slug = slugify(p.name);
     const data = {
       organizerId: organizer.id,
@@ -122,6 +152,10 @@ async function main() {
       zip: "90013",
       lat, lng,
       isLandmark: Boolean(meta.landmark),
+      website,
+      kind: meta.label,
+      tags,
+      description: typeof p.description === "string" && p.description.trim() ? p.description.trim() : null,
     };
 
     const existing = await prisma.venue.findUnique({ where: { slug } });
@@ -149,6 +183,9 @@ async function main() {
     }
     existing ? updated++ : created++;
     pinned++;
+    if (website) withSite++;
+    if (data.description) withBlurb++;
+    for (const t of tags) tagged.set(t, (tagged.get(t) ?? 0) + 1);
   }
 
   // Reconcile removals. A venue the organisers have dropped from this month's
@@ -185,6 +222,9 @@ async function main() {
   console.log(`  venues updated  ${updated}`);
   console.log(`  all with coordinates: ${pinned}`);
   console.log(`  outside every corridor (>${CORRIDOR_RADIUS}m): ${unassigned}`);
+  console.log(`  with a website  ${withSite}`);
+  console.log(`  with a blurb    ${withBlurb}`);
+  for (const [t, n] of [...tagged].sort((a, b) => b[1] - a[1])) console.log(`  tagged ${t.padEnd(14)} ${n}`);
   if (!apply) console.log(`\nre-run with --apply to write.`);
 
   await prisma.$disconnect();

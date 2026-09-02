@@ -45,6 +45,9 @@ export function toApiVenue(v: VenueRow): ApiVenue {
     lat: v.lat,
     lng: v.lng,
     isLandmark: v.isLandmark,
+    website: v.website,
+    kind: v.kind,
+    tags: v.tags,
     // Picked by hand like everything else here — never spread a Prisma row.
     corridor: v.corridor
       ? {

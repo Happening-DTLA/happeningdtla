@@ -190,6 +190,20 @@ model Venue {
 
   capacity Int?
 
+  /// The venue's own site. From the organisers' map, where they curate it.
+  website String?
+
+  /// How the organisers classify it — "Art Galleries", "Food and Drink",
+  /// "Museums", "Shopping". Their words, stored verbatim rather than squeezed
+  /// into this app's EventCategory: a museum and a gallery are both "art" to
+  /// the enum and are not the same decision to someone choosing where to walk.
+  kind String?
+
+  /// Curated flags from the organisers: "21+", "Kid Friendly", "After Party",
+  /// "Rooftop Lounge". These are how a visitor actually filters on the night —
+  /// can I bring my kid, is there somewhere still open after ten.
+  tags String[] @default([])
+
   /// Worth naming on the map rather than reducing to a dot — the venues the
   /// printed map draws a building for. A handful per night, deliberately: if
   /// everything is a landmark the map is just labels.
