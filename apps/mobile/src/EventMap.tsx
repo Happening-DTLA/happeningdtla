@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import MapView, { Marker, Polyline, type Region } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
@@ -39,6 +39,20 @@ const CATEGORY_ICON: Record<EventCategory, keyof typeof Ionicons.glyphMap> = {
   OTHER: "location",
 };
 
+/**
+ * How far the map has to move before the labels are worth re-deciding.
+ *
+ * Coarse when the whole of Downtown is on screen and fine at street level,
+ * because the same hundred metres means something different at each. Returns a
+ * string so React can compare it by value.
+ */
+function quantise(region: MapRegion): string {
+  const span = Math.max(region.latitudeDelta, region.longitudeDelta);
+  const tier = span > 0.018 ? 0 : span > 0.008 ? 1 : 2;
+  const cell = [0.004, 0.0015, 0.0006][tier]!;
+  return `${tier}:${Math.round(region.latitude / cell)}:${Math.round(region.longitude / cell)}`;
+}
+
 /** A corridor's street, ready to draw. */
 export type MapRoute = { slug: string; color: string; path: number[][][] };
 
@@ -46,19 +60,22 @@ export type MapRoute = { slug: string; color: string; path: number[][][] };
 /**
  * A venue pin, in one of two states.
  *
- * Most of the time it is a dot. A dot is 16 points across, says which corridor
- * it belongs to by its colour, and — crucially — leaves the street underneath
- * legible and the blue location dot visible. Only pins that won a label in
- * `placeLabels` open up into the full pill with a name.
+ * Most of the time it is a dot. A dot says which corridor it belongs to by its
+ * colour and leaves the street underneath legible; only pins that won a label
+ * in `placeLabels` open up into the full pill with a name.
  *
- * react-native-maps rasterises a custom marker view into an image. Leaving
- * `tracksViewChanges` on re-rasterises every frame and the map visibly
- * stutters once there are more than a handful of pins; turning it off from the
- * start can rasterise before layout and leave a blank marker. So it tracks
- * briefly, then stops — and tracks again whenever the marker's appearance
- * actually changes.
+ * There is deliberately no `tracksViewChanges` here. That prop only exists in
+ * the Google-provider marker — `AIRMapMarkerManager.m`, the Apple Maps one we
+ * actually use, never exports it — so the flag was ignored while the state and
+ * timer behind it cost two extra renders per marker every time anything
+ * changed. Apple Maps needs none of it: with custom children the marker view
+ * IS the React view, so it always shows current state and there is no cached
+ * bitmap to go stale.
+ *
+ * Memoised because there are fifty-six of these and the map re-renders as it
+ * moves. Without it, every settled pan rebuilt every pin.
  */
-function VenueMarker({
+const VenueMarker = memo(function VenueMarker({
   pin,
   selected,
   labelled,
@@ -69,8 +86,6 @@ function VenueMarker({
   labelled: boolean;
   onPress: (venueId: string) => void;
 }) {
-  const [tracks, setTracks] = useState(true);
-
   // The corridor's own colour, so the map and the printed key agree at a
   // glance. Falls back to the brand accent for venues outside a corridor.
   const tint = pin.venue.corridor?.color ?? theme.accent;
@@ -78,34 +93,26 @@ function VenueMarker({
   // needs the room for it.
   const SIZE = pin.events.length > 1 ? 20 : pin.venue.isLandmark ? 18 : 14;
 
-  useEffect(() => {
-    setTracks(true);
-    const timer = setTimeout(() => setTracks(false), 600);
-    return () => clearTimeout(timer);
-    // Every input the rasterised marker draws from. react-native-maps caches
-    // that image once tracking stops, so anything affecting its appearance has
-    // to be listed here or the map keeps showing a stale one — which is how a
-    // landmark ends up rendered as an anonymous count.
-    // `labelled` belongs here for the same reason: a pin that just earned or
-    // lost its name has to be redrawn, or the map keeps the cached image and
-    // shows a dot where a label should be.
-  }, [selected, labelled, tint, pin.venue.isLandmark, pin.venue.name, pin.events.length, pin.events[0]?.category]);
-
   return (
     <Marker
       coordinate={{ latitude: pin.venue.lat, longitude: pin.venue.lng }}
       onPress={() => onPress(pin.venue.id)}
-      tracksViewChanges={tracks}
       /**
-       * Negative on purpose, and this is the whole fix for a location dot
-       * nobody could see. On iOS this becomes the annotation layer's
-       * zPosition, and MapKit adds its own blue dot at zero — so any positive
-       * value here puts fifty-six venue pins in front of the one marker that
-       * says where the person actually is. Everything unselected now sits
-       * behind it. A pin you have deliberately tapped goes in front, because
-       * at that point it is what you asked to look at.
+       * Negative on purpose: on iOS this becomes the annotation layer's
+       * zPosition, and MapKit puts its own blue dot at zero, so any positive
+       * value here stacks fifty-six venue pins in front of the one marker
+       * showing where the person is. A pin you have deliberately tapped goes
+       * in front, because at that point it is what you asked to look at.
+       *
+       * Constant otherwise — and that matters more than it looks. Setting this
+       * prop calls the native setter, which writes `layer.zPosition`, which
+       * fires a KVO observer the library installs on that exact key path and
+       * which writes it straight back. Deriving the value from `labelled` sent
+       * fifty-six of those through that re-entrant path on every pan, while
+       * MapKit was itself rewriting zPosition to depth-sort the annotations.
+       * Selection is a deliberate, occasional act; map movement is continuous.
        */
-      zIndex={selected ? 2 : labelled ? -1 : -2}
+      zIndex={selected ? 2 : -1}
       // The default callout is a system bubble that cannot be themed and
       // duplicates the sheet below, so the marker owns the whole interaction.
       stopPropagation
@@ -180,7 +187,7 @@ function VenueMarker({
       )}
     </Marker>
   );
-}
+});
 
 export function EventMap({
   pins,
@@ -217,16 +224,29 @@ export function EventMap({
   const mapRef = useRef<MapView>(null);
 
   // Labels are decided in screen space, so both the viewport and the size of
-  // the view it is drawn into have to be known. The region is tracked on
-  // change-COMPLETE rather than continuously: recomputing fifty boxes on every
-  // frame of a pan would be work thrown away sixty times a second, and the
-  // labels settling as the map lands reads as intentional.
-  const [viewport, setViewport] = useState<MapRegion>(region);
+  // the view it is drawn into have to be known.
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const viewport = useRef<MapRegion>(region);
+  const [settled, setSettled] = useState(() => quantise(region));
 
+  /**
+   * Quantised, and this is the load-bearing part.
+   *
+   * The region is tracked on change-COMPLETE, but a settled pan is still every
+   * flick of a thumb, and each one recomputed the labels, which changed props
+   * on fifty-six live map annotations mid-interaction. Almost all of that work
+   * was thrown away: nudging the map twenty metres does not change which names
+   * fit. So movement is rounded to a grid and zoom to three tiers, and the
+   * labels are recomputed only when that rounded answer actually changes.
+   *
+   * The exact region is kept in a ref and used for the projection, so the
+   * boxes are still measured where the pins really are — only the DECISION to
+   * recompute is quantised, never the geometry.
+   */
   const labelled = useMemo(
-    () => placeLabels({ pins, region: viewport, size, selectedVenueId }),
-    [pins, viewport, size, selectedVenueId],
+    () => placeLabels({ pins, region: viewport.current, size, selectedVenueId }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pins, size.width, size.height, selectedVenueId, settled],
   );
 
   // Animated rather than re-mounted: `initialRegion` only applies once, so a
@@ -279,7 +299,11 @@ export function EventMap({
         toolbarEnabled={false}
         // Tapping the map itself dismisses the sheet, the way a modal does.
         onPress={() => onSelectVenue(null)}
-        onRegionChangeComplete={setViewport}
+        onRegionChangeComplete={(next) => {
+          viewport.current = next;
+          const key = quantise(next);
+          setSettled((prev) => (prev === key ? prev : key));
+        }}
       >
         {/* The poster's coloured lines, over a real map instead of a diagram.
             Drawn before the markers so pins sit on top and stay tappable.

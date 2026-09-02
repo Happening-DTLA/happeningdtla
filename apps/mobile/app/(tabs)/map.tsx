@@ -22,6 +22,49 @@ import { groupByCorridor } from "@/corridors";
  * ArtNight, so "what is on tonight" has exactly one answer and a row of date
  * presets over it was three taps that could only ever lead back here.
  */
+/**
+ * A filter chip.
+ *
+ * Declared out here rather than inside the screen. A component defined during
+ * render is a brand new type on every render, so React unmounts and remounts
+ * every chip rather than updating it — and now that location is watched while
+ * someone walks, this screen re-renders every ten metres.
+ */
+function Chip({
+  label, active, color, onPress,
+}: { label: string; active: boolean; color?: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress(); }}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={{
+        backgroundColor: active ? (color ?? theme.text) : "transparent",
+        borderColor: color ?? theme.border,
+        borderWidth: 1,
+        borderRadius: radius.pill,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      {color && !active ? (
+        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+      ) : null}
+      <Text
+        style={[
+          type.label,
+          { color: active ? (color ? inkOn(color) : theme.bg) : theme.textMuted },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -126,39 +169,6 @@ export default function MapScreen() {
 
   if (status === "loading") return <Loading />;
   if (status === "error") return <ErrorState message={error.message} onRetry={retry} />;
-
-  const Chip = ({
-    label, active, color, onPress,
-  }: { label: string; active: boolean; color?: string; onPress: () => void }) => (
-    <Pressable
-      onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress(); }}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      style={{
-        backgroundColor: active ? (color ?? theme.text) : "transparent",
-        borderColor: color ?? theme.border,
-        borderWidth: 1,
-        borderRadius: radius.pill,
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-      }}
-    >
-      {color && !active ? (
-        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
-      ) : null}
-      <Text
-        style={[
-          type.label,
-          { color: active ? (color ? inkOn(color) : theme.bg) : theme.textMuted },
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
