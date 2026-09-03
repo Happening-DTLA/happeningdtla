@@ -12,6 +12,7 @@ import { Archivo_700Bold } from "@expo-google-fonts/archivo/700Bold";
 import { ArchivoBlack_400Regular } from "@expo-google-fonts/archivo-black/400Regular";
 import { PaymentProvider } from "@/PaymentProvider";
 import { LikesProvider } from "@/likes-store";
+import { ProfileTypeProvider } from "@/profile-type";
 import { Welcome } from "@/Welcome";
 import { theme } from "@/theme";
 
@@ -51,6 +52,7 @@ export default function RootLayout() {
 
   return (
     <LikesProvider>
+        <ProfileTypeProvider>
       <PaymentProvider>
         <StatusBar style="light" />
         <Stack
@@ -82,6 +84,7 @@ export default function RootLayout() {
             app behind it is already mounted when it clears. */}
         {!welcomed ? <Welcome onDone={() => setWelcomed(true)} /> : null}
       </PaymentProvider>
-    </LikesProvider>
+    </ProfileTypeProvider>
+      </LikesProvider>
   );
 }

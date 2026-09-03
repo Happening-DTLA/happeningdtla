@@ -5,6 +5,8 @@ import { theme, space } from "@/theme";
 import { useLikes } from "@/likes-store";
 import { TICKETING_ENABLED } from "@/features";
 import { API_BASE_URL } from "@/api";
+import { PROFILE_COPY, PROFILE_TYPES, useProfileType } from "@/profile-type";
+import { radius, type } from "@/theme";
 
 /**
  * Profile. Signed-out state only for now — auth arrives with checkout, since
@@ -50,6 +52,7 @@ function Row({
 export default function ProfileScreen() {
   const router = useRouter();
   const { liked } = useLikes();
+  const { profileType, setProfileType } = useProfileType();
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.bg }}
@@ -74,7 +77,57 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
+      {/* Onboarding will ask this once, on the way in. Until sign-in exists
+          there is no account to hold the answer, so it is asked here and kept
+          on the device — and it reveals a module rather than granting
+          anything, so nothing depends on it being trustworthy. */}
+      <View style={{ gap: space.sm }}>
+        <Text style={[type.label, { color: theme.textMuted }]}>I'm here as</Text>
+        <View style={{ flexDirection: "row", gap: space.sm }}>
+          {PROFILE_TYPES.map((t) => {
+            const on = profileType === t;
+            return (
+              <Pressable
+                key={t}
+                onPress={() => setProfileType(t)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                style={{
+                  flex: 1,
+                  backgroundColor: on ? theme.accent : "transparent",
+                  borderColor: on ? theme.accent : theme.border,
+                  borderWidth: 1,
+                  borderRadius: radius.pill,
+                  paddingVertical: 9,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={[type.label, { color: on ? theme.accentInk : theme.textMuted }]}>
+                  {PROFILE_COPY[t].label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={{ color: theme.textMuted, fontSize: 12 }}>{PROFILE_COPY[profileType].blurb}</Text>
+      </View>
+
       <View style={{ gap: space.md }}>
+        {profileType === "ARTIST" ? (
+          <Row
+            icon="color-palette-outline"
+            label="Submit your work"
+            hint="Apply to exhibit in the gallery network"
+            onPress={() => router.push("/submit/artist")}
+          />
+        ) : null}
+        {profileType === "VENUE" ? (
+          <Row
+            icon="storefront-outline"
+            label="Host a space"
+            hint="Coming soon"
+          />
+        ) : null}
         <Row
           icon="heart-outline"
           label="Saved events"
