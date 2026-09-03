@@ -58,7 +58,13 @@ type Point = {
   geojson?: { coordinates?: [number, number] };
   topic_category_id?: { $oid?: string };
   tag_info?: { user_tags?: { _id?: { $oid?: string } }[] };
-  custom_information?: { custom_field_entries?: { field_id?: { $oid?: string }; field_value?: unknown }[] };
+  custom_information?: {
+    custom_field_entries?: {
+      field_id?: { $oid?: string };
+      field_value?: unknown;
+      field_value_json?: { url?: string; images?: { url?: string }[] };
+    }[];
+  };
   active?: boolean;
 };
 
@@ -72,6 +78,19 @@ const TAGS: Record<string, string> = {
 
 /** Custom fields we understand. Anything else is ignored rather than guessed at. */
 const FIELD_WEBSITE = "6a1dfc4d6964911bfea5fb47";
+/** A single cover shot. Duplicates the first gallery image where both exist. */
+const FIELD_COVER = "6a1dfc4d6964911bfea5fb4a";
+/** The gallery — where most of the photographs are. */
+const FIELD_PHOTOS = "6a1dfc4d6964911bfea5fb4b";
+
+/**
+ * Where the map's relative image paths resolve to.
+ *
+ * The paths arrive as "/i/<id>.png" and redirect to Proxi's CDN, which is the
+ * platform the organisers' map is built on. Resolved here rather than at read
+ * time so a stored URL is complete and this is the only place that knows.
+ */
+const IMAGE_BASE = "https://maps.dtlaartnight.com";
 
 const slugify = (s: string) =>
   "an-" +
@@ -124,7 +143,7 @@ async function main() {
 
   let created = 0, updated = 0, pinned = 0, unassigned = 0;
   const tagged = new Map<string, number>();
-  let withSite = 0, withBlurb = 0;
+  let withSite = 0, withBlurb = 0, withPhotos = 0, photoCount = 0;
   for (const p of live) {
     const [lng, lat] = p.geojson!.coordinates!;
     const meta = CATEGORY[p.topic_category_id?.$oid ?? ""] ?? { label: "Other", category: "OTHER" as Category };
@@ -152,6 +171,26 @@ async function main() {
       (typeof customWebsite === "string" && customWebsite.trim()) ||
       null;
 
+    /**
+     * Photographs, cover first.
+     *
+     * Two fields carry them and they overlap — the cover is usually the first
+     * gallery image again — so this dedupes rather than showing the same shot
+     * twice at the top of a venue page.
+     */
+    const entries = p.custom_information?.custom_field_entries ?? [];
+    const photoUrls: string[] = [];
+    for (const id of [FIELD_COVER, FIELD_PHOTOS]) {
+      for (const e of entries.filter((e) => e.field_id?.$oid === id)) {
+        const v = e.field_value_json;
+        for (const raw of [v?.url, ...(v?.images ?? []).map((i) => i?.url)]) {
+          if (typeof raw !== "string" || !raw.trim()) continue;
+          const url = raw.startsWith("http") ? raw : `${IMAGE_BASE}${raw}`;
+          if (!photoUrls.includes(url)) photoUrls.push(url);
+        }
+      }
+    }
+
     const slug = slugify(p.name);
     const data = {
       organizerId: organizer.id,
@@ -164,6 +203,7 @@ async function main() {
       website,
       kind: meta.label,
       tags,
+      photos: photoUrls,
       description: typeof p.description === "string" && p.description.trim() ? p.description.trim() : null,
     };
 
@@ -193,6 +233,7 @@ async function main() {
     existing ? updated++ : created++;
     pinned++;
     if (website) withSite++;
+    if (photoUrls.length) { withPhotos++; photoCount += photoUrls.length; }
     if (data.description) withBlurb++;
     for (const t of tags) tagged.set(t, (tagged.get(t) ?? 0) + 1);
   }
@@ -232,6 +273,7 @@ async function main() {
   console.log(`  all with coordinates: ${pinned}`);
   console.log(`  outside every corridor (>${CORRIDOR_RADIUS}m): ${unassigned}`);
   console.log(`  with a website  ${withSite}`);
+  console.log(`  with photos     ${withPhotos} venues, ${photoCount} images`);
   console.log(`  with a blurb    ${withBlurb}`);
   for (const [t, n] of [...tagged].sort((a, b) => b[1] - a[1])) console.log(`  tagged ${t.padEnd(14)} ${n}`);
   if (!apply) console.log(`\nre-run with --apply to write.`);

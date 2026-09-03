@@ -29,6 +29,7 @@ import { ErrorState, EventCard, Label, LikeButton, Loading } from "@/components"
 import { useLikes } from "@/likes-store";
 import { TICKETING_ENABLED } from "@/features";
 import { EventMap } from "@/EventMap";
+import { VenuePhotos } from "@/VenuePhotos";
 
 const Section = ({ children }: { children: React.ReactNode }) => (
   <View style={{ paddingHorizontal: space.lg, gap: space.md }}>{children}</View>
@@ -126,6 +127,12 @@ export default function EventScreen() {
             accessibilityIgnoresInvertColors
           />
         ) : null}
+
+        {/* The venue, when there is no flyer to lead with — which on an
+            ArtNight night is every listing, because these are open doors
+            rather than promoted shows. Renders nothing when the venue has no
+            photographs, which is three quarters of them. */}
+        {!event.imageUrl ? <VenuePhotos photos={venue.photos} name={venue.name} /> : null}
 
         <Section>
           {event.night ? (

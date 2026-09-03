@@ -88,6 +88,13 @@ export interface ApiVenue {
   kind: string | null;
   /** Curated flags: "21+", "Kid Friendly", "After Party", "Rooftop Lounge". */
   tags: string[];
+  /**
+   * Photographs of the place, largest first as the organisers list them.
+   *
+   * Only about a quarter of venues have any, so every surface using these has
+   * to look deliberate without one rather than leaving a grey box.
+   */
+  photos: string[];
 }
 
 /** The flags a visitor filters by on the night, in the order they matter. */
@@ -305,4 +312,28 @@ export interface ApiDoorStats {
 /** Uniform error shape so clients handle failures the same way everywhere. */
 export interface ApiError {
   error: { code: string; message: string };
+}
+
+
+/**
+ * Widths Next's image optimiser will actually serve.
+ *
+ * It rejects any width not in this list with a 400 rather than resizing to
+ * order, so asking for "the width of this phone" has to be snapped to one of
+ * these first. These are the framework defaults; changing them means changing
+ * `images.deviceSizes` in next.config too.
+ */
+const OPTIMISER_WIDTHS = [16, 32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 1080, 1200, 1920] as const;
+
+/**
+ * A venue photograph, resized.
+ *
+ * The organisers' CDN serves multi-megabyte PNGs and ignores resize
+ * parameters, so every photo goes through the web app's optimiser — which
+ * returns WebP at a sane size and caches it at the edge. Routing them through
+ * our own origin is also the only way we can stop serving them in one move.
+ */
+export function venuePhotoUrl(origin: string, photo: string, width: number): string {
+  const w = OPTIMISER_WIDTHS.find((candidate) => candidate >= width) ?? 1920;
+  return `${origin.replace(/\/$/, "")}/_next/image?url=${encodeURIComponent(photo)}&w=${w}&q=70`;
 }

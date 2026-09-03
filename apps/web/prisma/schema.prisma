@@ -204,6 +204,14 @@ model Venue {
   /// can I bring my kid, is there somewhere still open after ten.
   tags String[] @default([])
 
+  /// Photographs of the place, in the organisers' order.
+  ///
+  /// Stored as source URLs rather than copied files: these come off the
+  /// organisers' map, which pulls them from each venue's own business listing,
+  /// so the rights to them are the venue's and not ours to re-publish. Holding
+  /// a reference means we can stop showing them by deleting a row.
+  photos String[] @default([])
+
   /// Worth naming on the map rather than reducing to a dot — the venues the
   /// printed map draws a building for. A handful per night, deliberately: if
   /// everything is a landmark the map is just labels.

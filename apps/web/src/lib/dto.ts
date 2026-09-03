@@ -45,6 +45,7 @@ export function toApiVenue(v: VenueRow): ApiVenue {
     lat: v.lat,
     lng: v.lng,
     isLandmark: v.isLandmark,
+    photos: v.photos,
     website: v.website,
     kind: v.kind,
     tags: v.tags,
