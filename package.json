@@ -19,6 +19,7 @@
     "setup": "npm run setup --workspace apps/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "sync:artnight": "npm run sync:artnight --workspace apps/web --"
+    "sync:artnight": "npm run sync:artnight --workspace apps/web --",
+    "start:anywhere": "npm run start:anywhere --workspace apps/mobile"
   }
 }
