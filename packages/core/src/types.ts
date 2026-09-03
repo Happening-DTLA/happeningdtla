@@ -335,5 +335,10 @@ const OPTIMISER_WIDTHS = [16, 32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 1080
  */
 export function venuePhotoUrl(origin: string, photo: string, width: number): string {
   const w = OPTIMISER_WIDTHS.find((candidate) => candidate >= width) ?? 1920;
-  return `${origin.replace(/\/$/, "")}/_next/image?url=${encodeURIComponent(photo)}&w=${w}&q=70`;
+  // Quality is not a free number in Next 16: the optimiser rejects anything
+  // outside `images.qualities`, which defaults to [75], with a 400 and the
+  // unhelpful body "INVALID_IMAGE_OPTIMIZE_REQUEST". 75 is that default. It
+  // also lands a 1.5MB source PNG at about 60KB of WebP, so there is nothing
+  // to gain by widening the list to shave a few more.
+  return `${origin.replace(/\/$/, "")}/_next/image?url=${encodeURIComponent(photo)}&w=${w}&q=75`;
 }

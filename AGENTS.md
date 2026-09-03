@@ -155,3 +155,11 @@ An error that is byte-identical across attempts — same message, same log count
   `.env` because the port is assigned dynamically. Don't hardcode it.
 - Do not run `npm audit fix --force` — the sole advisory is in the Prisma CLI's
   config loader and the "fix" downgrades Prisma to v6.
+
+## Image optimisation rejects most quality values
+
+`/_next/image` answers 400 `INVALID_IMAGE_OPTIMIZE_REQUEST` for any `q` not
+listed in `images.qualities` — which defaults to `[75]`, not to "anything from
+1 to 100". `w` is constrained the same way, to `deviceSizes` + `imageSizes`.
+Neither error says which parameter was wrong, and a wrong `q` looks exactly
+like a `remotePatterns` miss, so check the number before rewriting the config.
