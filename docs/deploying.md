@@ -196,6 +196,13 @@ Two things that do not work, both confirmed the hard way:
 - `EXPO_TOKEN` authenticates as a *robot* user, and Expo refuses to open an
   ngrok tunnel for one: `Cannot use ngrok with a robot user`.
 
-The laptop has to stay awake and running the command, and the URL is public
+The command runs under `caffeinate`, which holds the no-sleep assertion only
+for as long as the server does — so the Mac stays awake while previewing and
+goes back to its normal behaviour the moment you stop it. Nothing to remember
+to undo. (Doing it in System Settings instead: Energy Saver, "Prevent
+automatic sleeping when the display is off". The display may still sleep;
+that is fine and does not drop the tunnel.)
+
+The machine has to stay awake and running the command, and the URL is public
 while it does. Not needing the laptop at all means a build installed on the
 device, which needs the Apple Developer account.

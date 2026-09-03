@@ -50,7 +50,7 @@
     "ios": "expo start --ios",
     "android": "expo start --android",
     "typecheck": "tsc --noEmit",
-    "start:anywhere": "EXPO_PUBLIC_API_URL=https://happeningdtla-web-v63f.vercel.app expo start --tunnel"
+    "start:anywhere": "EXPO_PUBLIC_API_URL=https://happeningdtla-web-v63f.vercel.app caffeinate -is expo start --tunnel"
   },
   "private": true
 }
