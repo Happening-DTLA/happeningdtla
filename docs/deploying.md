@@ -169,3 +169,33 @@ function logs, which name the failing query.
   verified. On web, email *is* ticket delivery.
 - **Charges route through the platform**, not the venue, for any organizer that
   has not completed Stripe Connect onboarding.
+
+## Opening the app away from your laptop
+
+Expo Go does not contain the app. It fetches the JS bundle from Metro at a LAN
+address, so on any other network there is nothing for it to load — the Vercel
+API being public does not help, because that is the data and not the code.
+
+```bash
+npm run start:anywhere
+```
+
+Routes the bundle through Expo's tunnel instead of the LAN and points the app
+at the deployed API, so the phone needs the laptop for neither. Then open
+`exp://<host>` in Expo Go, where `<host>` is printed as the tunnel URL.
+
+The host is derived from the project, not the session, so **it survives a
+restart** — verified by restarting twice and comparing. It contains the word
+`anonymous` because no Expo account is logged in; that is cosmetic and does not
+make it unstable. Do not go looking for an account to fix it.
+
+Two things that do not work, both confirmed the hard way:
+
+- `expo login` cannot sign in an account created with Sign in with Apple. That
+  account has no password, so every attempt fails as a wrong password.
+- `EXPO_TOKEN` authenticates as a *robot* user, and Expo refuses to open an
+  ngrok tunnel for one: `Cannot use ngrok with a robot user`.
+
+The laptop has to stay awake and running the command, and the URL is public
+while it does. Not needing the laptop at all means a build installed on the
+device, which needs the Apple Developer account.
