@@ -26,6 +26,20 @@ datasource db {
 /// An attendee. `clerkId` is null for guest checkout — we deliberately let people
 /// buy a ticket with just an email/phone and claim the account later. Requiring
 /// signup before purchase is the single biggest conversion killer in ticketing.
+/**
+ * What someone is here to do.
+ *
+ * Set at onboarding and not a permission system: it decides which submission
+ * modules a person is offered, not what they are allowed to read. Everyone can
+ * attend, so ATTENDEE is the floor rather than a lesser tier — an artist is an
+ * attendee who also shows work.
+ */
+enum ProfileType {
+  ATTENDEE
+  ARTIST
+  VENUE
+}
+
 model User {
   id          String   @id @default(cuid())
   clerkId     String?  @unique
@@ -34,6 +48,9 @@ model User {
   displayName String?
   handle      String?  @unique
   avatarUrl   String?
+
+  /// Which submission modules this person sees. See ProfileType.
+  profileType ProfileType @default(ATTENDEE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -45,6 +62,7 @@ model User {
   followers      Follow[]          @relation("Following")
   interests      EventInterest[]
   checkIns       VenueCheckIn[]
+  submissions    ArtistSubmission[]
 
   @@index([email])
 }
@@ -658,4 +676,125 @@ model RateLimit {
   expiresAt DateTime
 
   @@index([expiresAt])
+}
+
+
+/**
+ * Where an artist's application has got to.
+ *
+ * Mirrors the process the organisers already publish rather than a generic
+ * workflow: work is reviewed, and a decline is explicitly not the end — their
+ * page promises five days to resubmit new work at no additional charge, which
+ * is why DECLINED carries a deadline rather than closing the record.
+ *
+ * APPROVED means the curatorial decision is made, not that the artist is in.
+ * Participation is confirmed when the placement invoice is paid, and that is a
+ * separate fact from whether the work was accepted.
+ */
+enum SubmissionStatus {
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  DECLINED
+  WITHDRAWN
+}
+
+/**
+ * An artist applying to exhibit in the ArtNight gallery network.
+ *
+ * Modelled on the organisers' own form at dtlaartnight.com/artist-submission,
+ * field for field, so an application made here is one their curatorial process
+ * already knows how to read. The one deliberate departure is the artwork list:
+ * their form collects it as a folder of files named
+ * "ArtistLastName_Title_Size_Price.jpg" and warns that unclear labelling
+ * delays review. Since the placement invoice is calculated per piece, those
+ * are real columns here instead of a filename convention.
+ */
+model ArtistSubmission {
+  id     String  @id @default(cuid())
+  /// Linked when we know who this is. Null for a submission made before the
+  /// artist has an account — the same guest-first path checkout uses.
+  userId String?
+
+  firstName String
+  lastName  String
+  email     String
+  phone     String
+
+  address1 String
+  address2 String?
+  city     String
+  state    String
+  zip      String
+
+  /// Their form requires these and accepts the literal "NA", so this stores
+  /// what the artist actually typed rather than pretending it is a URL.
+  socials String
+  website String
+
+  /// "Paintings", "Drawings", "Sculpture", "Mixed Media", "Print Making",
+  /// "Other" — their labels, multi-select, stored verbatim.
+  media String[] @default([])
+
+  /// Body of work, for review context. Their form allows up to ten files.
+  portfolioImages String[] @default([])
+
+  status SubmissionStatus @default(SUBMITTED)
+
+  /// Consent to email and SMS updates, with the moment it was given. A boolean
+  /// alone cannot answer "when did they agree", which is the only question
+  /// that matters if it is ever disputed.
+  consentAt DateTime
+
+  reviewedAt   DateTime?
+  reviewerNote String?
+  /// Set on a decline: their published promise is five days to resubmit new
+  /// work at no additional charge, so the deadline is data, not a policy page.
+  resubmitBy DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  artworks SubmissionArtwork[]
+
+  @@index([email])
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+/**
+ * One piece being submitted for placement.
+ *
+ * Priced individually because the organisers invoice per accepted piece, and
+ * measured because placement depends on it — their published rule quotes
+ * separately for anything over four feet tall, three feet wide or fifty
+ * pounds, so the dimensions decide which pieces need a custom quote.
+ *
+ * Dimensions are inches INCLUDING THE FRAME, which is what their form asks for
+ * and what a wall actually has to accommodate.
+ */
+model SubmissionArtwork {
+  id           String @id @default(cuid())
+  submissionId String
+
+  title  String
+  medium String?
+
+  heightIn Float?
+  widthIn  Float?
+  depthIn  Float?
+  weightLb Float?
+
+  /// Asking price, in cents. Artists keep 100% of sales; this is what the
+  /// piece is listed at, not a figure anyone takes a cut of.
+  priceCents Int
+
+  imageUrl String
+
+  position Int @default(0)
+
+  submission ArtistSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
 }
