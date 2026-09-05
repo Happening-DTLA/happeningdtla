@@ -14,6 +14,7 @@ import {
   VENUE_TAGS,
 } from "@dtlahappening/core";
 import { useLocation } from "@/location";
+import { usePassport } from "@/passport-store";
 import { theme, space, radius, type, inkOn } from "@/theme";
 import { EmptyState, Reveal } from "@/components";
 import { countVenues, groupByCorridor } from "@/corridors";
@@ -125,6 +126,8 @@ export function NightDirectory({
   const [refine, setRefine] = useState<{ axis: "kind" | "tag"; value: string } | null>(null);
   const [nearestFirst, setNearestFirst] = useState(false);
   const { coords, status: locationStatus, request: requestLocation } = useLocation();
+  const { stampedFor } = usePassport();
+  const stampedCount = stampedFor(night.id).size;
 
   /** Metres from the person to each venue, once we know where they are. */
   const metersFor = useCallback(
@@ -211,6 +214,23 @@ export function NightDirectory({
           {groups.length === 1 ? "corridor" : "corridors"}
           {pinned < destinations ? ` · ${pinned} on the map` : ""}
         </Text>
+        <Pressable
+          onPress={() => router.push("/passport")}
+          accessibilityRole="button"
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: space.sm,
+            alignSelf: "flex-start",
+            paddingVertical: space.xs,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Ionicons name="ribbon-outline" size={16} color={theme.accent} />
+          <Text style={[type.label, { color: theme.accent }]}>
+            {stampedCount > 0 ? `Passport · ${stampedCount} stamped` : "Start your passport"}
+          </Text>
+        </Pressable>
         <Pressable
           onPress={() => router.push("/visitor-guide")}
           accessibilityRole="button"

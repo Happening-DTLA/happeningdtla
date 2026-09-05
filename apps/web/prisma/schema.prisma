@@ -635,21 +635,48 @@ model EventInterest {
 /// this is the raw material for the route map, "3 of 8 stops", and seeing where
 /// friends are. Distinct from Scan: a check-in is social and can happen at a
 /// free venue with no ticket at all.
+/**
+ * Somebody stood at a door.
+ *
+ * The phone is the source of truth for this, not the database — a passport
+ * that needs the network to stamp fails in the ground-floor gallery it exists
+ * for. These rows are the aggregate copy, sent when there is signal, and they
+ * exist to answer one question for the organisers: how many people actually
+ * walked to each venue.
+ *
+ * So it identifies a device rather than a person. `deviceId` is a random value
+ * generated on install, tied to no account and no contact detail, and a
+ * reinstall produces a new one — deliberately, because a counter does not need
+ * an identifier that survives reinstalls, and one that did would be a tracking
+ * id. `userId` is there for later, when someone signed in wants their stamps
+ * on a second phone.
+ */
 model VenueCheckIn {
   id      String  @id @default(cuid())
-  userId  String
+  userId  String?
+  /// Anonymous, per-install. See the note above.
+  deviceId String?
   venueId String
   nightId String?
 
+  /// When the person stamped it, which is not when we heard about it — a
+  /// stamp collected in a basement may arrive an hour later.
+  at DateTime @default(now())
+  /// Whether the phone could see them near the door at the time. False is a
+  /// legitimate check-in, not a suspect one: GPS in the Historic Core is poor
+  /// and refusing someone standing in the room is the worse failure.
+  verified Boolean @default(false)
+
   createdAt DateTime @default(now())
 
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
   venue Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
   night Night? @relation(fields: [nightId], references: [id], onDelete: SetNull)
 
-  @@unique([userId, venueId, nightId])
+  @@unique([deviceId, venueId, nightId])
   @@index([nightId])
   @@index([venueId])
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

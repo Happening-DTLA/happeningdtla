@@ -30,6 +30,7 @@ import { useLikes } from "@/likes-store";
 import { TICKETING_ENABLED } from "@/features";
 import { EventMap } from "@/EventMap";
 import { VenuePhotos } from "@/VenuePhotos";
+import { StampButton } from "@/StampButton";
 
 const Section = ({ children }: { children: React.ReactNode }) => (
   <View style={{ paddingHorizontal: space.lg, gap: space.md }}>{children}</View>
@@ -171,6 +172,17 @@ export default function EventScreen() {
               <Ionicons name="chevron-forward" size={18} color={theme.accent} />
             </Pressable>
           ) : null}
+
+          {/* High on the page on purpose. On the night this is the reason the
+              screen is open — someone is standing at the door with the phone
+              already in their hand, not reading about the venue. */}
+          <StampButton
+            venueId={venue.id}
+            venueName={venue.name}
+            nightId={event.night?.id ?? null}
+            lat={venue.lat}
+            lng={venue.lng}
+          />
 
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space.md }}>
             <Text

@@ -14,6 +14,7 @@ import { PaymentProvider } from "@/PaymentProvider";
 import { LikesProvider } from "@/likes-store";
 import { ProfileTypeProvider } from "@/profile-type";
 import { LocationProvider } from "@/location";
+import { PassportProvider } from "@/passport-store";
 import { Welcome } from "@/Welcome";
 import { theme } from "@/theme";
 
@@ -55,6 +56,7 @@ export default function RootLayout() {
     <LikesProvider>
         <ProfileTypeProvider>
           <LocationProvider>
+            <PassportProvider>
       <PaymentProvider>
         <StatusBar style="light" />
         <Stack
@@ -86,7 +88,8 @@ export default function RootLayout() {
             app behind it is already mounted when it clears. */}
         {!welcomed ? <Welcome onDone={() => setWelcomed(true)} /> : null}
       </PaymentProvider>
-    </LocationProvider>
+    </PassportProvider>
+          </LocationProvider>
         </ProfileTypeProvider>
       </LikesProvider>
   );

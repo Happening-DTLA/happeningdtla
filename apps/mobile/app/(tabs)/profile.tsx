@@ -128,6 +128,14 @@ export default function ProfileScreen() {
             hint="Coming soon"
           />
         ) : null}
+        {/* Top of the list on the night, because it is the only row here that
+            changes while you are out. */}
+        <Row
+          icon="ribbon-outline"
+          label="Passport"
+          hint="Stamps you've collected"
+          onPress={() => router.push("/passport")}
+        />
         <Row
           icon="heart-outline"
           label="Saved events"
