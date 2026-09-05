@@ -117,13 +117,11 @@ export function placeLabels({
   pins,
   region,
   size,
-  selectedVenueId,
   max = 16,
 }: {
   pins: VenuePin[];
   region: MapRegion;
   size: { width: number; height: number };
-  selectedVenueId: string | null;
   max?: number;
 }): Set<string> {
   const placed = new Set<string>();
@@ -144,12 +142,19 @@ export function placeLabels({
     return { x0: x - width / 2, x1: x + width / 2, y0: y - 15, y1: y + 15 };
   };
 
-  const priority = (pin: VenuePin) => {
-    if (pin.venue.id === selectedVenueId) return 1e6;
+  /**
+   * Deliberately knows nothing about what is selected.
+   *
+   * Giving the selected pin a guaranteed label meant every tap re-ran this and
+   * evicted whichever neighbours the new label overlapped — so tapping one pin
+   * made others silently collapse to dots, which reads as them disappearing.
+   * Selection is already unmistakable from the pin's own colour and the sheet
+   * naming it; it does not also need to rearrange the map around itself.
+   */
+  const priority = (pin: VenuePin) =>
     // A landmark is what someone navigates by — the Broad, the Biltmore — so
     // it outranks a gallery even where the gallery has more on.
-    return (pin.venue.isLandmark ? 1000 : 0) + pin.events.length;
-  };
+    (pin.venue.isLandmark ? 1000 : 0) + pin.events.length;
 
   /**
    * How much of the city is on screen decides who is even eligible.
@@ -169,7 +174,7 @@ export function placeLabels({
   const bar = span > 0.018 ? 1000 : 0;
 
   const ranked = pins
-    .filter((p) => p.venue.id === selectedVenueId || priority(p) >= bar)
+    .filter((p) => priority(p) >= bar)
     .sort((a, b) => {
       const d = priority(b) - priority(a);
       // Ties broken by id, never by array order: the same viewport has to make

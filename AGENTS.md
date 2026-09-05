@@ -184,6 +184,9 @@ clear of that path, both in EventMap.tsx:
   the `opacity` prop, not by removing markers.
 - **Never mount children with the map.** Withhold them until `onMapReady`, so
   the adapter exists and every insert is a plain append.
+- **Selection must not resize a marker.** Restyle it in place — a dot gains a
+  ring, a pill fills with colour. Growing a dot into a labelled pill leaves the
+  native annotation view at its old frame and the pin renders as a bare dot.
 - **Never mount more than one Marker per frame.** A Marker with a custom child
   is a legacy interop view nested in another one; mount the parent before that
   child's own `finalizeUpdates` has run and its `contentView` is nil, AIRMap is

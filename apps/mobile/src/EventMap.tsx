@@ -72,6 +72,13 @@ export type MapRoute = { slug: string; color: string; path: number[][][] };
  * IS the React view, so it always shows current state and there is no cached
  * bitmap to go stale.
  *
+ * Selection restyles it and never reshapes it, which is a hard rule rather
+ * than a preference. A dot becoming a pill asks the native annotation view to
+ * resize in place, and it does not reliably do that — the tapped pin ends up
+ * drawn as a bare dot with its label gone, which is exactly the opposite of
+ * what a tap should do. So a selected dot stays a dot and gains a ring, and a
+ * selected pill stays a pill and fills with its colour. Nothing moves.
+ *
  * Memoised because there are fifty-six of these and the map re-renders as it
  * moves. Without it, every settled pan rebuilt every pin.
  */
@@ -127,12 +134,13 @@ const VenueMarker = memo(function VenueMarker({
       // duplicates the sheet below, so the marker owns the whole interaction.
       stopPropagation
     >
-      {labelled || selected ? (
+      {labelled ? (
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             gap: 6,
+            // Colour only — same padding, same text, same box.
             backgroundColor: selected ? tint : theme.surface,
             borderColor: tint,
             borderWidth: 1,
@@ -175,8 +183,12 @@ const VenueMarker = memo(function VenueMarker({
             height: SIZE,
             borderRadius: SIZE / 2,
             backgroundColor: tint,
-            borderColor: theme.bg,
-            borderWidth: 2,
+            // A ring rather than a bigger dot. React Native borders are drawn
+            // inside the box, so this reads as selected without changing the
+            // view's size — which is the whole point: see the note on the
+            // marker body above.
+            borderColor: selected ? theme.text : theme.bg,
+            borderWidth: selected ? 3 : 2,
             alignItems: "center",
             justifyContent: "center",
             shadowColor: "#000",
@@ -334,9 +346,9 @@ export function EventMap({
   const shown = useMemo(() => pins.filter((p) => shownIds.has(p.venue.id)), [pins, shownIds]);
 
   const labelled = useMemo(
-    () => placeLabels({ pins: shown, region: viewport.current, size, selectedVenueId }),
+    () => placeLabels({ pins: shown, region: viewport.current, size }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shown, size.width, size.height, selectedVenueId, settled],
+    [shown, size.width, size.height, settled],
   );
 
   // Animated rather than re-mounted: `initialRegion` only applies once, so a

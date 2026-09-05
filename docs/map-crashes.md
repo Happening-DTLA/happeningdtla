@@ -148,6 +148,21 @@ Two more, learned alongside:
   writes it straight back. Deriving it from something that changes while the
   map moves sends every marker through that re-entrant path continuously.
 
+## The same constraint, without a crash
+
+Annotation views also dislike being **resized** in place, and that one shows up
+as a visual fault rather than a crash. Selecting a pin used to turn a 14pt dot
+into a ~150pt labelled pill; the native view kept its old frame, so the tapped
+pin was drawn as a bare dot with its label gone — the opposite of what a tap
+should do. Giving the selected pin a guaranteed label made it worse, because
+the new label evicted whichever neighbours it overlapped and those collapsed to
+dots too, which reads as markers disappearing at random.
+
+So: **selection is a paint change, never a layout change.** A selected dot
+stays a dot and gains a ring; a selected pill stays a pill and fills with its
+colour. React Native draws borders inside the box, so a ring costs no size.
+Label placement no longer knows what is selected at all.
+
 ## The actual fix
 
 `react-native-maps@1.29+` has real Fabric components and no interop layer, so
