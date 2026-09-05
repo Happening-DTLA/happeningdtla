@@ -163,3 +163,28 @@ listed in `images.qualities` — which defaults to `[75]`, not to "anything from
 1 to 100". `w` is constrained the same way, to `deviceSizes` + `imageSizes`.
 Neither error says which parameter was wrong, and a wrong `q` looks exactly
 like a `remotePatterns` miss, so check the number before rewriting the config.
+
+## react-native-maps crashes natively under Fabric in Expo Go
+
+Expo Go SDK 54 pins react-native-maps 1.20.1, which ships no Fabric
+components, so MapView, Marker and Polyline all run through
+RCTLegacyViewManagerInteropComponentView. That class queues any child mount
+that is not an append onto an already-existing adapter, then replays the queue
+in finalizeUpdates — where nested interop children whose contentView is not
+ready yet fail to grow the array, and later indices overshoot:
+
+    NSRangeException — -[__NSArrayM insertObject:atIndex:]:
+    index 28 beyond bounds [0 .. 22]
+    ... facebook::react::TelemetryController::pullTransaction
+
+No red box, no JS error: straight to the home screen. Two rules keep the app
+clear of that path, both in EventMap.tsx:
+
+- **Never change the number of MapView children.** Filtering is expressed with
+  the `opacity` prop, not by removing markers.
+- **Never mount children with the map.** Withhold them until `onMapReady`, so
+  the adapter exists and every insert is a plain append.
+
+The real fix is react-native-maps 1.29+, which has genuine Fabric components
+(`RNMapsMapView`, `RNMapsMarker`) and no interop layer at all. That needs a
+development build; it cannot be done inside Expo Go, whose binary is fixed.

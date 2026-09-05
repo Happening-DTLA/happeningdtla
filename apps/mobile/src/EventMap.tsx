@@ -256,6 +256,34 @@ export function EventMap({
   // Labels are decided in screen space, so both the viewport and the size of
   // the view it is drawn into have to be known.
   const [size, setSize] = useState({ width: 0, height: 0 });
+
+  /**
+   * Children are withheld until the map itself has mounted, and this is the
+   * fix for a hard crash rather than a nicety.
+   *
+   * react-native-maps ships no Fabric components, so MapView, Marker and
+   * Polyline are all driven by RCTLegacyViewManagerInteropComponentView. That
+   * class inserts a child directly only when its adapter already exists AND
+   * the index is an append; otherwise the mount is queued and replayed later
+   * in finalizeUpdates. On a first mount the adapter does not exist yet, so
+   * all sixty-four children queue — and replaying that many nested interop
+   * views does not reliably grow the array, because a child's contentView can
+   * still be nil when the parent drains. Later indices then overshoot:
+   *
+   *     NSRangeException — insertObject:atIndex: index 28 beyond bounds [0..22]
+   *
+   * and the app is gone with no JS error. Mounting the map empty first means
+   * the adapter exists before any child arrives, so every insert is an append
+   * and takes the direct path. The queue is never used.
+   *
+   * The timer is a backstop: if onMapReady never fires we would otherwise show
+   * a map with no pins at all, which is worse than the crash it prevents.
+   */
+  const [mapMounted, setMapMounted] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setMapMounted(true), 350);
+    return () => clearTimeout(timer);
+  }, []);
   const viewport = useRef<MapRegion>(region);
   const [settled, setSettled] = useState(() => quantise(region));
 
@@ -333,6 +361,7 @@ export function EventMap({
         toolbarEnabled={false}
         // Tapping the map itself dismisses the sheet, the way a modal does.
         onPress={() => onSelectVenue(null)}
+        onMapReady={() => setMapMounted(true)}
         onRegionChangeComplete={(next) => {
           viewport.current = next;
           const key = quantise(next);
@@ -345,34 +374,36 @@ export function EventMap({
             the printed key shows. One selected: that street thickens and the
             rest recede rather than vanishing, so the chosen stretch is read in
             the context of the ones around it. */}
-        {routes.map((route) =>
-          route.path.map((run, i) => {
-            const active = activeRoute === route.slug;
-            const dimmed = activeRoute !== null && !active;
-            return (
-              <Polyline
-                key={`${route.slug}-${i}`}
-                coordinates={run.map(([latitude, longitude]) => ({ latitude, longitude }))}
-                strokeColor={withAlpha(route.color, dimmed ? 0.22 : active ? 1 : 0.75)}
-                strokeWidth={active ? 7 : 4}
-                lineCap="round"
-                lineJoin="round"
-                zIndex={active ? 2 : 1}
-              />
-            );
-          }),
-        )}
+        {mapMounted &&
+          routes.map((route) =>
+            route.path.map((run, i) => {
+              const active = activeRoute === route.slug;
+              const dimmed = activeRoute !== null && !active;
+              return (
+                <Polyline
+                  key={`${route.slug}-${i}`}
+                  coordinates={run.map(([latitude, longitude]) => ({ latitude, longitude }))}
+                  strokeColor={withAlpha(route.color, dimmed ? 0.22 : active ? 1 : 0.75)}
+                  strokeWidth={active ? 7 : 4}
+                  lineCap="round"
+                  lineJoin="round"
+                  zIndex={active ? 2 : 1}
+                />
+              );
+            }),
+          )}
 
-        {pins.map((pin) => (
-          <VenueMarker
-            key={pin.venue.id}
-            pin={pin}
-            selected={pin.venue.id === selectedVenueId}
-            labelled={labelled.has(pin.venue.id)}
-            hidden={!shownIds.has(pin.venue.id)}
-            onPress={onSelectVenue}
-          />
-        ))}
+        {mapMounted &&
+          pins.map((pin) => (
+            <VenueMarker
+              key={pin.venue.id}
+              pin={pin}
+              selected={pin.venue.id === selectedVenueId}
+              labelled={labelled.has(pin.venue.id)}
+              hidden={!shownIds.has(pin.venue.id)}
+              onPress={onSelectVenue}
+            />
+          ))}
       </MapView>
 
       {userCoords ? (
