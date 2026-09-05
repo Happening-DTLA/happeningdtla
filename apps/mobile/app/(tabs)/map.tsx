@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import type { ApiEventSummary } from "@dtlahappening/core";
@@ -11,9 +10,11 @@ import { api } from "@/api";
 import { useAsync } from "@/useAsync";
 import { theme, space, radius, type, inkOn } from "@/theme";
 import { ErrorState, Loading } from "@/components";
-import { EventMap, type Coords } from "@/EventMap";
+import { EventMap } from "@/EventMap";
 import { boundsOf, groupEventsByVenue } from "@/venue-pins";
 import { groupByCorridor } from "@/corridors";
+import { describeWalk, distanceMeters } from "@dtlahappening/core";
+import { useLocation } from "@/location";
 
 /**
  * The night, on a map.
@@ -71,8 +72,10 @@ export default function MapScreen() {
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
   const [corridor, setCorridor] = useState<string | null>(null);
   const [refine, setRefine] = useState<{ axis: "kind" | "tag"; value: string } | null>(null);
-  const [coords, setCoords] = useState<Coords | null>(null);
-  const [locationGranted, setLocationGranted] = useState(false);
+  // The map is where asking for location is self-explanatory, so this is the
+  // screen that prompts. Everywhere else reads what it gets.
+  const { coords, status: locationStatus, request: requestLocation } = useLocation();
+  useEffect(() => { void requestLocation(); }, [requestLocation]);
 
   const fetcher = useCallback((s: AbortSignal) => api.upcomingNight(s), []);
   const { status, data: night, error, retry } = useAsync(fetcher);
@@ -138,39 +141,6 @@ export default function MapScreen() {
     setSelectedVenueId(null);
   }, [corridor, refine]);
 
-  // Watched, not sampled once. This is a map for walking a mile of Downtown
-  // over an evening; a position fixed at the moment the tab opened is wrong by
-  // the second block, and "centre on me" would keep returning to where the
-  // person used to be. Ten metres is about a stride's worth of doorway.
-  useEffect(() => {
-    let active = true;
-    let subscription: Location.LocationSubscription | null = null;
-
-    (async () => {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!active || permission.status !== "granted") return;
-      setLocationGranted(true);
-      subscription = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
-        (position) => {
-          if (active) {
-            setCoords({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            });
-          }
-        },
-      );
-      if (!active) subscription.remove();
-    })().catch(() => {
-      /* denied or unavailable — the map is already centred on Downtown */
-    });
-
-    return () => {
-      active = false;
-      subscription?.remove();
-    };
-  }, []);
 
   if (status === "loading") return <Loading />;
   if (status === "error") return <ErrorState message={error.message} onRetry={retry} />;
@@ -229,7 +199,7 @@ export default function MapScreen() {
           focusKey={focusKey}
           selectedVenueId={selectedVenueId}
           onSelectVenue={setSelectedVenueId}
-          showUserLocation={locationGranted}
+          showUserLocation={locationStatus === "granted"}
           userCoords={coords}
         />
 
@@ -330,6 +300,17 @@ export default function MapScreen() {
                   {selected.venue.address1}
                   {selected.venue.kind ? ` · ${selected.venue.kind}` : ""}
                 </Text>
+                {/* The one number someone standing on a corner wants. */}
+                {coords ? (
+                  <Text style={[type.label, { color: theme.accent, marginTop: 6 }]}>
+                    {describeWalk(
+                      distanceMeters(coords, {
+                        latitude: selected.venue.lat,
+                        longitude: selected.venue.lng,
+                      }),
+                    )}
+                  </Text>
+                ) : null}
               </View>
               <Pressable
                 onPress={() => setSelectedVenueId(null)}

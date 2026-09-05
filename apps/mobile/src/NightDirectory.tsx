@@ -5,11 +5,15 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import type { ApiEventSummary, ApiNight } from "@dtlahappening/core";
 import {
+  describeWalk,
+  distanceMeters,
   formatCalendarDate,
+  HERE_METERS,
   shortNightName,
   venueSubtitle,
   VENUE_TAGS,
 } from "@dtlahappening/core";
+import { useLocation } from "@/location";
 import { theme, space, radius, type, inkOn } from "@/theme";
 import { EmptyState, Reveal } from "@/components";
 import { countVenues, groupByCorridor } from "@/corridors";
@@ -33,21 +37,25 @@ function Destination({
   event,
   color,
   index,
+  meters,
 }: {
   event: ApiEventSummary;
   color: string;
   index: number;
+  /** How far the person is from the door, when we know where they are. */
+  meters: number | null;
 }) {
   const router = useRouter();
   const pinned = event.venue.lat !== null && event.venue.lng !== null;
   const subtitle = venueSubtitle(event.venue);
+  const walk = meters === null ? null : describeWalk(meters);
 
   return (
     <Reveal index={index}>
       <Pressable
         onPress={() => router.push(`/e/${event.slug}`)}
         accessibilityRole="button"
-        accessibilityLabel={[event.venue.name, subtitle].filter(Boolean).join(", ")}
+        accessibilityLabel={[event.venue.name, subtitle, walk && `${walk} away`].filter(Boolean).join(", ")}
         style={({ pressed }) => ({
           backgroundColor: pressed ? theme.surface : "transparent",
           borderTopColor: theme.border,
@@ -74,9 +82,22 @@ function Destination({
             </Text>
           ) : null}
         </View>
-        {/* Says whether this one can be found on the map. Silence would be a
-            small lie on a screen whose whole job is helping someone walk. */}
-        {pinned ? <Ionicons name="location" size={14} color={theme.textMuted} /> : null}
+        {/* The distance replaces the map pin rather than sitting beside it:
+            a walking time already implies the place has a location, and two
+            pieces of the same information is one too many in a row this
+            narrow. Falls back to the pin when we do not know where they are. */}
+        {walk ? (
+          <Text
+            style={[
+              type.label,
+              { color: meters !== null && meters <= HERE_METERS ? theme.accent : theme.textMuted },
+            ]}
+          >
+            {walk}
+          </Text>
+        ) : pinned ? (
+          <Ionicons name="location" size={14} color={theme.textMuted} />
+        ) : null}
         <Ionicons name="chevron-forward" size={16} color={theme.border} />
       </Pressable>
     </Reveal>
@@ -102,6 +123,17 @@ export function NightDirectory({
   // two filter rows on top of the corridor row turns the top of the screen
   // into a control panel — on a street corner people want one tap, not three.
   const [refine, setRefine] = useState<{ axis: "kind" | "tag"; value: string } | null>(null);
+  const [nearestFirst, setNearestFirst] = useState(false);
+  const { coords, status: locationStatus, request: requestLocation } = useLocation();
+
+  /** Metres from the person to each venue, once we know where they are. */
+  const metersFor = useCallback(
+    (event: ApiEventSummary): number | null => {
+      if (!coords || event.venue.lat === null || event.venue.lng === null) return null;
+      return distanceMeters(coords, { latitude: event.venue.lat, longitude: event.venue.lng });
+    },
+    [coords],
+  );
   const router = useRouter();
 
   // Only offer what the night actually contains, in a fixed order so the row
@@ -143,6 +175,20 @@ export function NightDirectory({
     [night, matches],
   );
   const shown = only ? groups.filter((g) => g.corridor.slug === only) : groups;
+
+  /**
+   * Every visible stop, flattened and ordered by how far away it is.
+   *
+   * Stops with no coordinates sink to the bottom rather than being dropped: a
+   * venue that quietly disappears from a crawl guide is worse than one listed
+   * last, because someone walks past an open door.
+   */
+  const nearbyEvents = useMemo(() => {
+    const rows = shown.flatMap((g) =>
+      g.events.map((event) => ({ event, color: g.corridor.color, meters: metersFor(event) })),
+    );
+    return rows.sort((a, b) => (a.meters ?? Infinity) - (b.meters ?? Infinity));
+  }, [shown, metersFor]);
 
   const destinations = countVenues(night.events);
   const pinned = groups.reduce((n, g) => n + g.pinned, 0);
@@ -295,8 +341,63 @@ export function NightDirectory({
         </ScrollView>
       ) : null}
 
+      {/* Nearest first, offered rather than imposed.
+          The corridor grouping is what agrees with the printed map someone is
+          holding, so it stays the default. But standing on a corner at nine in
+          the evening the question stops being "what is on Spring Street" and
+          becomes "what can I still get to", and alphabetical-within-corridor
+          is no answer to that. Asking for location is deferred to this tap:
+          the button explains what the permission buys before iOS asks, which
+          is the difference between a considered yes and a reflexive no. */}
+      <Pressable
+        onPress={async () => {
+          Haptics.selectionAsync().catch(() => {});
+          if (!nearestFirst && locationStatus !== "granted") {
+            const granted = await requestLocation();
+            if (!granted) return;
+          }
+          setNearestFirst((v) => !v);
+        }}
+        accessibilityRole="button"
+        accessibilityState={{ selected: nearestFirst }}
+        style={({ pressed }) => ({
+          marginHorizontal: space.lg,
+          marginTop: space.sm,
+          paddingVertical: 10,
+          paddingHorizontal: space.md,
+          borderColor: nearestFirst ? theme.accent : theme.border,
+          borderWidth: 1,
+          backgroundColor: nearestFirst ? theme.accent : pressed ? theme.surface : "transparent",
+          flexDirection: "row",
+          alignItems: "center",
+          gap: space.sm,
+        })}
+      >
+        <Ionicons
+          name={nearestFirst ? "navigate" : "navigate-outline"}
+          size={15}
+          color={nearestFirst ? theme.accentInk : theme.textMuted}
+        />
+        <Text style={[type.label, { color: nearestFirst ? theme.accentInk : theme.text, flex: 1 }]}>
+          {nearestFirst ? "Nearest first" : "Sort by what's closest"}
+        </Text>
+        {!nearestFirst && locationStatus === "denied" ? (
+          <Text style={[type.meta, { color: theme.textMuted }]}>Needs location</Text>
+        ) : null}
+      </Pressable>
+
       {shown.length === 0 ? (
         <EmptyState title="Nothing listed there" body="Pick another corridor, or show them all." />
+      ) : nearestFirst ? (
+        /* Flat, because distance does not respect the corridors — the closest
+           three doors can be on three different streets, and re-grouping them
+           would hide the exact thing being asked for. The colour bar on each
+           row still says which corridor it belongs to. */
+        <View style={{ marginTop: space.md }}>
+          {nearbyEvents.map(({ event, color, meters }, i) => (
+            <Destination key={event.id} event={event} color={color} index={i} meters={meters} />
+          ))}
+        </View>
       ) : (
         shown.map((g) => (
           <View key={g.corridor.slug} style={{ marginTop: space.lg }}>
@@ -333,7 +434,7 @@ export function NightDirectory({
             ) : null}
             <View style={{ marginTop: space.sm }}>
               {g.events.map((e, i) => (
-                <Destination key={e.id} event={e} color={g.corridor.color} index={i} />
+                <Destination key={e.id} event={e} color={g.corridor.color} index={i} meters={metersFor(e)} />
               ))}
             </View>
           </View>

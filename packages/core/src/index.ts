@@ -10,3 +10,4 @@ export * from "./money";
 export * from "./datetime";
 export * from "./ticket-code";
 export * from "./submissions";
+export * from "./geo";
