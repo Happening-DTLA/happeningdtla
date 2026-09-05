@@ -194,3 +194,6 @@ clear of that path, both in EventMap.tsx:
 The real fix is react-native-maps 1.29+, which has genuine Fabric components
 (`RNMapsMapView`, `RNMapsMarker`) and no interop layer at all. That needs a
 development build; it cannot be done inside Expo Go, whose binary is fixed.
+
+Full write-up, including all three crash reports and how to read the next one:
+`docs/map-crashes.md`.
