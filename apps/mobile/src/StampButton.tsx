@@ -6,6 +6,7 @@ import { CHECK_IN_RADIUS_M, distanceMeters, isNear } from "@dtlahappening/core";
 import { usePassport } from "@/passport-store";
 import { useLocation } from "@/location";
 import { theme, space, radius, type } from "@/theme";
+import { StampBurst } from "@/StampBurst";
 
 /**
  * Collecting a door.
@@ -27,16 +28,23 @@ export function StampButton({
   nightId,
   lat,
   lng,
+  color,
+  corridorVenueIds,
 }: {
   venueId: string;
   venueName: string;
   nightId: string | null;
   lat: number | null;
   lng: number | null;
+  /** The corridor's colour, so the stamp lands in the ink of its street. */
+  color: string;
+  /** Every venue on this street, to know whether this stamp finished it. */
+  corridorVenueIds: string[];
 }) {
   const { stampedFor, add, remove } = usePassport();
   const { coords, status, request } = useLocation();
   const [busy, setBusy] = useState(false);
+  const [celebrating, setCelebrating] = useState<{ complete: boolean } | null>(null);
 
   // A night is what a stamp belongs to; without one there is nothing to collect.
   if (!nightId) return null;
@@ -51,12 +59,18 @@ export function StampButton({
       setBusy(true);
       try {
         await add({ venueId, nightId, verified });
+        // Worked out before the celebration draws, because "you finished the
+        // street" is a different moment from "you got one more".
+        const after = new Set([...stampedFor(nightId), venueId]);
+        const complete =
+          corridorVenueIds.length > 0 && corridorVenueIds.every((id) => after.has(id));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        setCelebrating({ complete });
       } finally {
         setBusy(false);
       }
     },
-    [add, venueId, nightId],
+    [add, venueId, nightId, stampedFor, corridorVenueIds],
   );
 
   const onPress = useCallback(async () => {
@@ -96,6 +110,14 @@ export function StampButton({
 
   return (
     <View style={{ gap: 6 }}>
+      {celebrating ? (
+        <StampBurst
+          venueName={venueName}
+          color={color}
+          corridorComplete={celebrating.complete}
+          onDone={() => setCelebrating(null)}
+        />
+      ) : null}
       <Pressable
         onPress={onPress}
         disabled={busy}

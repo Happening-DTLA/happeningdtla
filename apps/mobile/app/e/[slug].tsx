@@ -84,6 +84,15 @@ export default function EventScreen() {
   });
 
   const siblings = (night.data?.events ?? []).filter((e) => e.id !== event.id);
+  // Every venue on this venue's street, so a stamp knows whether it finished
+  // one. Empty until the night loads, which just means no completion banner.
+  const corridorVenueIds = [
+    ...new Set(
+      (night.data?.events ?? [])
+        .filter((e) => e.venue.corridor?.slug === venue.corridor?.slug)
+        .map((e) => e.venue.id),
+    ),
+  ];
   const sameVenue = siblings.filter((e) => e.venue.id === venue.id).slice(0, 2);
   const elsewhere = siblings.filter((e) => e.venue.id !== venue.id).slice(0, 3);
 
@@ -182,6 +191,8 @@ export default function EventScreen() {
             nightId={event.night?.id ?? null}
             lat={venue.lat}
             lng={venue.lng}
+            color={venue.corridor?.color ?? theme.accent}
+            corridorVenueIds={corridorVenueIds}
           />
 
           <View style={{ flexDirection: "row", alignItems: "flex-start", gap: space.md }}>

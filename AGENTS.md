@@ -184,6 +184,12 @@ clear of that path, both in EventMap.tsx:
   the `opacity` prop, not by removing markers.
 - **Never mount children with the map.** Withhold them until `onMapReady`, so
   the adapter exists and every insert is a plain append.
+- **Never mount more than one Marker per frame.** A Marker with a custom child
+  is a legacy interop view nested in another one; mount the parent before that
+  child's own `finalizeUpdates` has run and its `contentView` is nil, AIRMap is
+  handed nothing, quietly does not grow its array, and the next index is past
+  the end. Polylines are exempt — they have no React children, which is exactly
+  why eight of them mounted cleanly in the report that showed this.
 
 The real fix is react-native-maps 1.29+, which has genuine Fabric components
 (`RNMapsMapView`, `RNMapsMarker`) and no interop layer at all. That needs a

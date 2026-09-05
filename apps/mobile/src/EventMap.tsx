@@ -284,6 +284,34 @@ export function EventMap({
     const timer = setTimeout(() => setMapMounted(true), 350);
     return () => clearTimeout(timer);
   }, []);
+
+  /**
+   * Markers arrive one per frame, and the crash report is what says one.
+   *
+   *     index 11 beyond bounds [0 .. 9]
+   *
+   * Nine is eight polylines plus a single marker. The polylines all landed and
+   * the first marker landed; the second did not, and every index after it was
+   * then off by one. The difference between them is the whole thing: a
+   * Polyline has no React children, while a Marker's child is our own view —
+   * a legacy interop view nested inside another one. Mount the parent before
+   * that child's own finalizeUpdates has run and its contentView is still nil,
+   * so AIRMap is handed nothing, quietly does not grow its array, and the next
+   * insert is past the end.
+   *
+   * A frame between each one is enough for the child to finish. Growing by
+   * appending is also the safe direction: an append is the case the interop
+   * view handles directly, and the count still never shrinks, which is the
+   * rule that fixed the first crash. Fifty-six frames is about a second, and
+   * pins arriving in sequence reads as the map filling in rather than as a
+   * fault.
+   */
+  const [markersMounted, setMarkersMounted] = useState(0);
+  useEffect(() => {
+    if (!mapMounted || markersMounted >= pins.length) return;
+    const frame = requestAnimationFrame(() => setMarkersMounted((n) => n + 1));
+    return () => cancelAnimationFrame(frame);
+  }, [mapMounted, markersMounted, pins.length]);
   const viewport = useRef<MapRegion>(region);
   const [settled, setSettled] = useState(() => quantise(region));
 
@@ -393,17 +421,16 @@ export function EventMap({
             }),
           )}
 
-        {mapMounted &&
-          pins.map((pin) => (
-            <VenueMarker
-              key={pin.venue.id}
-              pin={pin}
-              selected={pin.venue.id === selectedVenueId}
-              labelled={labelled.has(pin.venue.id)}
-              hidden={!shownIds.has(pin.venue.id)}
-              onPress={onSelectVenue}
-            />
-          ))}
+        {pins.slice(0, markersMounted).map((pin) => (
+          <VenueMarker
+            key={pin.venue.id}
+            pin={pin}
+            selected={pin.venue.id === selectedVenueId}
+            labelled={labelled.has(pin.venue.id)}
+            hidden={!shownIds.has(pin.venue.id)}
+            onPress={onSelectVenue}
+          />
+        ))}
       </MapView>
 
       {userCoords ? (
