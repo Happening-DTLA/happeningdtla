@@ -1,219 +1,183 @@
 # DTLAHappening — handoff
 
-Written 24 August 2026. Read this first in a fresh session, then
-`AGENTS.md` for the code-level rules.
+Rewritten 5 September 2026. Read this, then `AGENTS.md` for the code-level
+rules, then `docs/map-crashes.md` before touching the map.
 
 ---
 
 ## What this is
 
-An event-discovery and ticketing app for Downtown Los Angeles. The anchor is
-**Art Night DTLA**, the first Thursday of every month. Logan's friend owns
-several DTLA venues and has the connections to bring on others. Per agreement
-with those venue owners, tickets are sold **only in this app, not Eventbrite**.
+A native app for **DTLA Art Night** — the first Thursday of every month, when
+galleries, studios, museums and rooftops across Downtown Los Angeles open their
+doors. Logan builds it; Dino and Michael organise Art Night and are the
+partners it exists to serve.
 
-**Target: first live ticketed event Thursday 1 October 2026.**
+It began as a general events-and-ticketing app. It is now **Art Night first**:
+one night, 56 venues, nine corridors. Ticketing still exists in full but sits
+behind a flag (`EXPO_PUBLIC_TICKETING` / `NEXT_PUBLIC_TICKETING`) and is off,
+because the night is free.
 
-The differentiator vs Eventbrite: Art Night is a *crawl* — one night, many
-venues, people moving between them. Eventbrite models one event = one venue =
-one ticket and structurally cannot represent that. `Night` and `VenueCheckIn`
-exist in the schema from day one so the passport/route feature needs no
-migration later. It is deliberately **not built yet** — ticketing had to work
-first.
+The app is deliberately **not** a wrapper around dtlaartnight.com. What makes it
+an app rather than a website is the map, live walking distances, and the
+passport — things that need a device in a pocket on a street.
 
-**Team:** Logan plus one other developer (remote, writes code) and a partner
-with financial backing.
+### The visual direction
 
----
+The gig poster. Flat ink, square corners (`radius.block = 0`), Archivo Black
+set large, corridor colours lifted from the organisers' printed map. The
+welcome screen is a screenprint being pulled. **Do not introduce soft,
+translucent, rounded, glassy surfaces** — that was considered and rejected on
+purpose; it would read as two products stapled together.
 
-## State: the whole ticketing loop works
+## The shape of the repo
 
-- **Buyer** — browse by night and neighborhood, search and filter by category,
-  buy with the native Stripe payment sheet, tickets in the app wallet, by
-  email, and on the web.
-- **Door** — pairing codes scoped to one event and one organizer, first-scan-
-  wins admission, full audit log, works offline and syncs afterwards.
-- **Venue** — sign in, connect their own Stripe, invite their team, generate
-  door codes, choose whether to be publicly named.
+npm workspaces monorepo:
 
-29 commits on `main`, pushed to a **private** repo at
-`Happening-DTLA/happeningdtla`. `main` is the trunk and the default branch;
-branch off it and open a PR. The old `feat/native-monorepo` branch was
-fast-forwarded into `main` and is gone.
+- `apps/mobile` — Expo SDK 54, React Native 0.81, expo-router. The product.
+- `apps/web` — Next.js 16. The API, plus web checkout for when ticketing returns.
+- `packages/core` — shared pure TypeScript. Must run in Hermes. Types,
+  money, dates, geo, passport rules, submission contract.
 
----
+Deployed API: `https://happeningdtla-web-v63f.vercel.app`
+Database: Supabase Postgres, `us-west-1`.
 
-## Repo
+## Setting up on a new machine
 
-Monorepo, npm workspaces, at `/Users/logantierno/development/dtlahappening`.
+Git brings everything except secrets:
 
-```
-apps/web      Next.js 16 — API, public event pages, venue dashboard. Owns the
-              database and every secret.
-apps/mobile   Expo SDK 54 / React Native 0.81, expo-router. The store client.
-packages/core Shared pure TypeScript: API types, money, datetime, ticket codes.
-              Runs in Hermes — no Node or DOM APIs, ever.
-```
+1. `npm install` at the root (postinstall generates the Prisma client).
+2. **`apps/web/.env`** — copy from the old machine by AirDrop, not email. It
+   holds the database URL, Supabase direct URL and CA cert, Stripe, Clerk and
+   Resend keys.
+3. Optionally `apps/mobile/.env.local` with
+   `EXPO_PUBLIC_API_URL=https://happeningdtla-web-v63f.vercel.app`.
+4. `npm run typecheck` should be clean across all three workspaces.
 
-**Completely unrelated to `~/development/arteon`.** Do not conflate them.
+To run it on a phone from anywhere: `npm run start:anywhere` — tunnels the
+bundle and points at the deployed API, under `caffeinate` so the Mac stays
+awake only while it runs. See `docs/deploying.md`.
 
-### Running it
+## Where things stand
 
-```bash
-cd /Users/logantierno/development/dtlahappening
-npm run dev      # web + API on :3100
-npm run mobile   # Expo, scan with Expo Go
-```
+### Working and verified
 
-Database is local via `npx prisma dev` — no Docker, no Homebrew.
-`npm run setup` boots it, migrates and seeds.
+- **Art Night directory** — the app's home tab. 56 venues grouped by corridor,
+  filterable by corridor and by the organisers' own kinds and tags.
+- **Map** — corridor routes, pins in corridor colours, labels placed by
+  collision avoidance, live location, walking distance per stop. See the map
+  section below; it has a history.
+- **Walking distances** — "6 min · 0.3 mi" on directory rows and the map sheet,
+  plus a nearest-first sort. Verified against real Downtown geometry.
+- **Venue photos** — pulled from the organisers' map, served through the web
+  app's image optimiser (their CDN ignores resize params and serves 1.6MB PNGs).
+  Only **14 of 56** venues have any; Dino is supplying the rest.
+- **Passport** — stamps per venue, corridor completion, offline-first on the
+  device with best-effort anonymous sync. Endpoint verified idempotent.
+- **Artist submissions** — modelled field-for-field on the organisers' own form,
+  with the artwork list as real columns rather than filename conventions.
+- **Venue sync** — `npm run sync:artnight` (add `-- --apply` to write).
 
-Also needs, in its own terminal, for payments to become tickets:
-```bash
-stripe listen --forward-to localhost:3100/api/webhooks/stripe
-```
+### Blocked on Logan, not on code
 
-### Tests — run these after touching anything in their area
+- **`SUPABASE_SERVICE_ROLE_KEY` is not set.** Artist portfolio and artwork
+  uploads cannot work without it. Everything else in that pipeline is built and
+  deployed; the signing endpoint returns a clear 503 saying exactly this.
+- **`EMAIL_FROM` is blank**, so mail falls back to `onboarding@resend.dev`,
+  which only delivers to the Resend account owner. **Artist submission
+  notifications are therefore not reaching anyone.** Waiting on a DNS record
+  from Dino — see `docs/email-setup-ask-dino.md`.
 
-```bash
-cd apps/web
-npm run test:inventory   # oversell race, holds, expiry
-npm run test:door        # pairing, scanning, offline sync
-npm run test:team        # invitations, roles, affiliation
-npm run test:checkout    # full Stripe purchase (needs stripe listen)
-```
+### Built but never exercised on a device
 
-Every one of these has caught a real bug that reading the code did not.
+- The **artist submission form** — typechecks and bundles, but the image picker,
+  upload and submit path have never run, because uploads are blocked above.
 
----
+### Deliberately not built
 
-## Invariants that must not be broken
+- **Auth.** There is none. Profile type (attendee / artist / venue) is chosen on
+  the Profile tab and stored on the device. It reveals a module; it grants
+  nothing, and the server validates everything independently.
+- **Venue submissions** — the second module, stubbed as "coming soon".
+- **Onboarding** — the profile-type question belongs there when it exists.
 
-Documented in `apps/web/prisma/schema.prisma` comments too.
+## The map: read `docs/map-crashes.md` first
 
-- **Never oversell.** Inventory commits via a raw conditional
-  `UPDATE ... WHERE quantitySold + n <= quantity`. Never read-then-write.
-- **Webhooks are at-least-once.** Dedupe on the Stripe event id in the same
-  transaction that fulfils the order, or one payment issues two sets of tickets.
-- **First scan wins.** `UPDATE ... WHERE checkedInAt IS NULL`. Log every
-  attempt, including duplicates and unknown codes.
-- **Money is integer cents.** Never float.
-- **Ticket codes must be unguessable.** `newTicketCode()`.
-- **All-in pricing everywhere.** California requires it and it is the loudest
-  complaint about Eventbrite.
-- **A `Ticket` row means someone paid.** That is why `OrderItem` exists — so no
-  scan has to remember to check order status.
-- **Never reject on an ambiguous read.** A null lookup under contention can
-  mean "couldn't check", not "doesn't exist". Turning away a paying customer
-  is the worst thing this system can do.
+The map crashed hard three times — native `NSRangeException`, no red box,
+straight to the home screen. `react-native-maps@1.20.1` (which **Expo Go SDK 54
+pins and you cannot change**) has no Fabric components, so every MapView, Marker
+and Polyline runs through the legacy interop layer.
 
----
+Three cumulative rules keep it alive, all in `apps/mobile/src/EventMap.tsx`.
+Undoing any one brings the crash back:
 
-## Gotchas found the hard way — do not rediscover these
+1. The number of MapView children never changes — filter with `opacity`.
+2. Children are never mounted with the map — wait for `onMapReady`.
+3. Never mount more than one Marker per frame.
 
-**Dates come in two kinds.** `Event.startsAt` is an instant (format Pacific).
-`Night.date` is a Postgres `date` returned as midnight UTC — format it in
-**UTC** or the first Thursday renders as a Wednesday. Helpers in
-`packages/core/src/datetime.ts`. Date filters must use `pacificDayRange`; a
-UTC day boundary hides the 6pm Art Night events entirely.
+Plus: selection must restyle a marker, never resize it.
 
-**No fire-and-forget database writes in a request handler.** An un-awaited
-query keeps a pooled connection checked out past the response; torn down
-mid-query it returns to the pool broken, and the *next* request dies with a
-Postgres protocol desync (`08P01`, `34000`). The symptom appears on a different
-request than the cause.
+**There is one open question.** Logan reports that tapping a marker sometimes
+makes *labelled* markers near it disappear. The last change made label placement
+sticky — an incumbent keeps its label — which is the right defence against the
+suspected cause (MapKit nudges the map when an annotation is tapped, which
+re-runs placement). **It is unconfirmed.** A test could not reproduce the
+original symptom, only prove the new behaviour holds. If it still happens, the
+next hypothesis is that the map subtree is remounting, which would unmount every
+marker and re-add them one per frame — that has a visible signature, since pins
+would reappear in sequence over about a second.
 
-**Blank env vars are empty strings, not undefined.** `??` does not catch them.
-`Number("")` is 0, which once configured a connection pool that could never
-hand out a connection. Use `?.trim() ||`.
+## What to do first
 
-**Expo Go's bundled module list is not a compatibility check.** `expo-crypto`
-is bundled but its AES submodule is not — `@clerk/clerk-expo` fails at import
-with `Cannot find native module 'ExpoCryptoAES'`. Only loading the bundle on a
-device proves anything.
+Logan now has an **Apple Developer account** and Xcode on this machine. Both of
+those change what is possible, and the first two jobs follow from them.
 
-**One React copy, enforced in `apps/mobile/metro.config.js`.** Three exist
-legitimately (root + web on 19.2.x for Next, mobile on 19.1.0 for Expo SDK 54).
-Two in one bundle means `useState of null` on every screen. `extraNodeModules`
-does **not** fix it — react-native is hoisted to the root so its own
-`require("react")` resolves before any fallback. Only `resolveRequest` works.
-Do not "simplify" this away.
+1. **Run the app in the simulator and look at it.** No previous session could —
+   the old machine has no Xcode — so every visual change so far was shipped
+   unverified and a few were wrong. Check the map's tap behaviour against the
+   open question above.
+2. **Set up EAS Build and cut a development build.** That escapes Expo Go, which
+   means `react-native-maps@1.29` with real Fabric components — and deleting all
+   three workarounds plus `docs/map-crashes.md`. It also unlocks TestFlight so
+   Dino can install the app from a link instead of a tunnel.
+   - `eas login` will fail: Logan's Expo account is Apple SSO and has no
+     password. Use `EXPO_TOKEN` instead — it authenticates as a robot user,
+     which EAS Build accepts (it is the standard CI path). The same token does
+     *not* work for `--tunnel`, which refuses robot users.
 
-**Do not set `disableHierarchicalLookup`** in metro config. It looks like the
-fix for duplicate React and breaks nested expo deps (`expo-asset`) instead.
+## After that
 
-**Middleware is `proxy.ts` in Next 16**, not `middleware.ts`, and only one is
-allowed — Clerk and CORS are composed in the single file.
+Roughly in order of value:
 
-**Clerk Core 3 removed `SignedIn`/`SignedOut`/`Protect`** for `<Show when=...>`.
-`<Show>` only hides visually — every real guard is a server-side check.
+- **End-of-night passport summary** worth screenshotting, and a venue footfall
+  readout for Dino — the argument for why a venue wants to be listed.
+- **Venue submission module**, mirroring the artist one.
+- **Onboarding**, which gives profile type a real home.
+- **Privacy policy and terms** — an App Store requirement, and cheap to write
+  accurately because the data collection is small and deliberate: email, phone
+  and address only for submissions; location never leaves the device except as
+  a "was near / was not near" boolean; check-ins identify a random per-install
+  id and no person.
+- `docs/launch-readiness.md` holds the older audit. Items 8, 9, 10, 12 and 13
+  are still open. The Stripe production webhook matters before anything is ever
+  sold and is easy to forget, because payments would succeed and issue no
+  tickets, silently.
 
-**Stripe Connect is Accounts v2.** v1 account creation is refused for new
-integrations. Per-capability status replaces `charges_enabled`, and
-dashboard + fees/losses collector replaces the standard/express type. Express
-*requires* the platform to absorb losses, which is the liability we chose
-against — hence `dashboard: "full"` with Stripe collecting.
+## Things that will surprise you
 
-**`expo install --fix` can add a bogus config plugin.** It added
-`expo-status-bar` to `app.json` plugins, which is not one, and the dev server
-refused to start.
-
-**Never run `npm audit fix --force`.** The advisory is in the Prisma CLI's
-config loader and the "fix" downgrades to Prisma 6.
-
-**The Bash tool's working directory sometimes reverts.** Use absolute paths.
-
----
-
-## Services
-
-| Service | State |
-| --- | --- |
-| Stripe | Test mode, keys set, webhooks working, Connect enabled (Accounts v2) |
-| Clerk | Configured, web sign-in working |
-| Resend | Key set, **sends only to the account address** — no verified domain |
-| Database | Local via `prisma dev` |
-| Apple Developer | Not enrolled |
-| GitHub | Private repo, `Happening-DTLA/happeningdtla`, `main` pushed |
-
-`ADMIN_API_SECRET` is a development-only placeholder used by test scripts.
-It is refused in production.
-
----
-
-## What's next
-
-**Blocking 1 October, both non-code:**
-
-1. **Form the legal entity.** Longest lead time by far. Gates the D-U-N-S
-   number for the App Store *and* real Stripe Connect onboarding for venues.
-   Nothing else on this list takes a month.
-2. **Verify a sending domain in Resend.** Logan's partner owns a domain.
-   Until then ticket and invitation emails reach only Logan's own address.
-   Then set `EMAIL_FROM=tickets@<domain>`.
-
-**Waiting on an Apple Developer account ($99):** mobile sign-in
-(`@clerk/clerk-expo` needs a development build), Apple Pay, App Store listing.
-None block anything else. Guest checkout means no buyer needs an account.
-
-**Small and mine to do:**
-- Get street addresses for the 37 ArtNight venues that have none, so they can
-  be pinned on the map. See "Owed: 37 venue addresses" in
-  `launch-readiness.md`. Nothing else about ArtNight is blocked on code.
-- Remove the dev-only "claim a venue" button — invitations replace it, and it
-  should not exist when a venue partner first sees the dashboard.
-- Invite the other developer to the GitHub org and the repo, and send them
-  the Clerk and Stripe **test** keys out of band — `.env` is gitignored, so a
-  clone gives them `.env.example` and nothing else.
-- Re-run the door tests against real Postgres before the night. Some burst
-  behaviour is an artifact of the local `prisma dev` proxy.
-
-**Deliberately not built:** the passport / crawl features, refunds UI, event
-creation UI (events are seeded), push notifications.
-
-**Open business decisions** — see `docs/payments-brief.html`, the partner
-document. Merchant of record (recommendation: direct charges, venue liable),
-refund policy, exclusivity in writing, and the fee level. The 6% + $0.99 in
-`packages/core/src/money.ts` is a **placeholder** — worked against Stripe's
-rate it charges the buyer more and pays the venue less than a fee sized so
-venues net full face value.
+- **`AGENTS.md` is real and load-bearing.** Every entry cost hours. Read it.
+- **Next.js 16 rejects any image `quality` outside `images.qualities`** — which
+  defaults to `[75]` — with a 400 whose body says only
+  `INVALID_IMAGE_OPTIMIZE_REQUEST`, indistinguishable from a `remotePatterns`
+  miss.
+- **Prisma 7 changed the migrate CLI.** `--from-url` and `--to-schema-datamodel`
+  are gone; use `--from-config-datasource --to-schema`. Migrations must target
+  `SUPABASE_DIRECT_URL`, not the pooler.
+- **`prisma migrate dev` is dangerous here** — the database is live. Generate
+  SQL with `migrate diff`, read it, then `migrate deploy`.
+- **`tracksViewChanges` does nothing on Apple Maps.** It is only exported by the
+  Google provider's marker manager.
+- **A stale Metro or Next server** has cost this project real hours twice. An
+  error that is byte-identical across attempts is evidence about the pipeline,
+  not the code — check what is actually serving before diagnosing into the code.
+- **Commit messages carry the reasoning.** Eighty-odd commits explain *why*
+  things are shaped as they are. `git log` is documentation here.
