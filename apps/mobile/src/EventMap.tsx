@@ -49,7 +49,10 @@ const CATEGORY_ICON: Record<EventCategory, keyof typeof Ionicons.glyphMap> = {
 function quantise(region: MapRegion): string {
   const span = Math.max(region.latitudeDelta, region.longitudeDelta);
   const tier = span > 0.018 ? 0 : span > 0.008 ? 1 : 2;
-  const cell = [0.004, 0.0015, 0.0006][tier]!;
+  // Coarse on purpose. Combined with the stickiness in placeLabels, the map
+  // has to be moved a real distance before any name changes — a thumb nudge or
+  // the small pan MapKit does when an annotation is tapped changes nothing.
+  const cell = [0.008, 0.003, 0.0012][tier]!;
   return `${tier}:${Math.round(region.latitude / cell)}:${Math.round(region.longitude / cell)}`;
 }
 
@@ -345,11 +348,14 @@ export function EventMap({
   // would leave a gap where a name should be.
   const shown = useMemo(() => pins.filter((p) => shownIds.has(p.venue.id)), [pins, shownIds]);
 
-  const labelled = useMemo(
-    () => placeLabels({ pins: shown, region: viewport.current, size }),
+  // What is labelled right now, so the next placement can prefer to keep it.
+  const held = useRef<ReadonlySet<string>>(new Set());
+  const labelled = useMemo(() => {
+    const next = placeLabels({ pins: shown, region: viewport.current, size, sticky: held.current });
+    held.current = next;
+    return next;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shown, size.width, size.height, settled],
-  );
+  }, [shown, size.width, size.height, settled]);
 
   // Animated rather than re-mounted: `initialRegion` only applies once, so a
   // changed region prop would do nothing at all.

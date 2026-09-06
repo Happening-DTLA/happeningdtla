@@ -117,11 +117,25 @@ export function placeLabels({
   pins,
   region,
   size,
+  sticky,
   max = 16,
 }: {
   pins: VenuePin[];
   region: MapRegion;
   size: { width: number; height: number };
+  /**
+   * Pins that already carry a label. They get first claim on the space.
+   *
+   * Without this, placement is re-rolled from scratch every time the map
+   * moves, and a pin that lost a collision it previously won silently drops to
+   * a dot. Any nudge does it — including the small pan MapKit performs when an
+   * annotation is tapped, which is why the symptom looked like "tapping one
+   * pin makes the labelled ones near it disappear".
+   *
+   * A name that has been on screen is a name someone may be reading. It stays
+   * until it leaves the viewport or the zoom tier changes under it.
+   */
+  sticky?: ReadonlySet<string>;
   max?: number;
 }): Set<string> {
   const placed = new Set<string>();
@@ -176,6 +190,10 @@ export function placeLabels({
   const ranked = pins
     .filter((p) => priority(p) >= bar)
     .sort((a, b) => {
+      // Incumbents first, whatever their rank. Losing a label you already had
+      // is far more jarring than never having been given one.
+      const held = (sticky?.has(b.venue.id) ? 1 : 0) - (sticky?.has(a.venue.id) ? 1 : 0);
+      if (held !== 0) return held;
       const d = priority(b) - priority(a);
       // Ties broken by id, never by array order: the same viewport has to make
       // the same choices twice or labels flicker as the list is refetched.
