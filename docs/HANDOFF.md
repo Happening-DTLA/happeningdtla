@@ -123,11 +123,17 @@ iPhone 17 Pro simulator: the 56-marker Fabric map rendered, marker selection
 opened its venue sheet, and neighbouring labelled markers remained visible.
 
 1. **Cut a signed iPhone development build and install it on physical devices.**
-   - The simulator build does not require Apple signing. The next build will
-     need Apple Developer credentials to create or reuse the distribution
-     certificate and provisioning profile.
+   - Register Logan's and Dino's iPhone UDIDs with `eas device:create` first.
+     The simulator build did not require signing; the device build needs an
+     authorized Apple Developer login to create or reuse the distribution
+     certificate and ad-hoc provisioning profile.
+   - Enable Developer Mode on both iPhones. A newly registered device on a new
+     Apple membership can take 24–72 hours to become available for profiles.
    - Authenticate EAS with the gitignored `apps/mobile/.env.eas.local` token;
      never paste or commit that token.
+   - Run `eas build --platform ios --profile development` interactively for the
+     first credential setup. Full prerequisites and install steps are in
+     `docs/deploying.md` under "Signed physical-iPhone development build".
 
 ## After that
 

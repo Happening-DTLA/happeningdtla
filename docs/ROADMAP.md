@@ -33,6 +33,9 @@ directory, map, passport and distribution pipeline.
 
 ## 9–13 September — prove it on devices
 
+- [ ] Register Logan's and Dino's iPhone UDIDs, enable Developer Mode, and cut
+      the first signed ad-hoc development build with the EAS `development`
+      profile. Allow 24–72 hours for Apple to process devices on a new account.
 - [ ] Test fresh install, denied/granted location, map selection and filtering
       on at least two physical iPhones.
 - [ ] Walk a real Downtown route with weak connectivity. Verify live location,

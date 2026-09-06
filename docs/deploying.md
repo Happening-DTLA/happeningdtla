@@ -193,8 +193,9 @@ Two things that do not work, both confirmed the hard way:
 
 - `expo login` cannot sign in an account created with Sign in with Apple. That
   account has no password, so every attempt fails as a wrong password.
-- `EXPO_TOKEN` authenticates as a *robot* user, and Expo refuses to open an
-  ngrok tunnel for one: `Cannot use ngrok with a robot user`.
+- Expo CLI rejected the token-authenticated session when starting ngrok with
+  `Cannot use ngrok with a robot user`. EAS Build accepts the same personal
+  access token; this limitation is specific to the tunnel path that was tested.
 
 The command runs under `caffeinate`, which holds the no-sleep assertion only
 for as long as the server does — so the Mac stays awake while previewing and
@@ -206,3 +207,102 @@ that is fine and does not drop the tunnel.)
 The machine has to stay awake and running the command, and the URL is public
 while it does. Not needing the laptop at all means a build installed on the
 device, which needs the Apple Developer account.
+
+## Signed physical-iPhone development build
+
+This is an **ad-hoc development client**, not a simulator build and not
+TestFlight. It has the real native modules, installs directly on selected
+iPhones, and still loads JavaScript from Metro while developing.
+
+### Requirements
+
+- An active paid Apple Developer Program membership.
+- An Apple team member allowed to create certificates, identifiers and
+  profiles. An individual membership requires the Account Holder. For an
+  organization, use the Account Holder or Admin; an App Manager also works if
+  `Access to Certificates, Identifiers & Profiles` is enabled.
+- Every iPhone's UDID registered before the build. Ad-hoc builds install only
+  on devices included in their provisioning profile.
+- Developer Mode enabled on every test iPhone running iOS 16 or later:
+  **Settings → Privacy & Security → Developer Mode**, then restart and confirm.
+- The Expo personal access token in the gitignored
+  `apps/mobile/.env.eas.local`. Never paste it into docs, chat, shell history or
+  Git.
+- The Apple Account email, password and two-factor authentication available
+  locally for the first interactive credential setup. This is separate from
+  Expo authentication. EAS can create and manage the Apple Distribution
+  certificate and ad-hoc provisioning profile.
+
+### Register the test iPhones
+
+From `apps/mobile`, load the EAS token without printing it and start device
+registration:
+
+```bash
+set -a
+source .env.eas.local
+set +a
+npx eas-cli@latest device:create
+```
+
+Choose the website registration method. Open its URL on each iPhone and follow
+the iOS profile-install prompts. Register Logan's phone and Dino's phone before
+building so one artifact can install on both.
+
+Registration in Expo is only the first half: EAS adds the UDIDs to Apple's
+developer portal when it generates the provisioning profile. On a new or
+recently renewed Apple membership, Apple may take **24–72 hours** to process a
+new device. The first build may therefore fail even when registration was done
+correctly; wait for Apple, then rebuild.
+
+Check the registered list at any time:
+
+```bash
+npx eas-cli@latest device:list
+```
+
+### Build and install
+
+The `development` profile in `apps/mobile/eas.json` already sets
+`developmentClient: true` and `distribution: internal`:
+
+```bash
+npx eas-cli@latest build --platform ios --profile development
+```
+
+The first run is intentionally interactive. Log in to the Apple Account, use
+two-factor authentication, allow EAS to create or reuse the distribution
+certificate and ad-hoc provisioning profile, and select every registered test
+device. Do not use `--non-interactive` for this first credential setup.
+
+When the build finishes, open its install URL on an included iPhone or scan the
+EAS dashboard's install QR code. A phone registered after the build cannot
+install that artifact; make a new build or re-sign the existing one with an
+updated provisioning profile.
+
+Start Metro before opening the development client:
+
+```bash
+# Same LAN
+npm run start
+
+# Away from the Mac's network
+npm run start:anywhere
+```
+
+The Mac must remain awake and Metro must remain running. A signed development
+client removes Expo Go's native-module limits; it does not embed a release JS
+bundle.
+
+### TestFlight is the laptop-independent path
+
+TestFlight is separate from EAS internal distribution. It uses a production
+App Store build, does not require device UDIDs or Developer Mode, and embeds
+the JavaScript bundle. Once the physical-device checks pass, create the App
+Store Connect record, run a production EAS build, and submit that artifact to
+TestFlight. Do not reuse the ad-hoc development build as a TestFlight build.
+
+Official references: [Expo's physical iPhone development-build guide](https://docs.expo.dev/tutorial/eas/ios-development-build-for-devices/),
+[internal distribution and device registration](https://docs.expo.dev/build/internal-distribution/),
+[Apple roles required by EAS](https://docs.expo.dev/app-signing/apple-developer-program-roles-and-permissions/),
+and [Apple's Developer Mode instructions](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device).
