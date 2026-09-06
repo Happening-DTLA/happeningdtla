@@ -109,13 +109,11 @@ export default function MapScreen() {
     [refine, corridor],
   );
 
-  // Every pin the night has. This is what the map renders — always, in full.
-  // EventMap explains why the child list must never change size.
+  // Every pin the night has, used for the all-corridors count and framing.
   const allPins = useMemo(() => groupEventsByVenue(events), [events]);
-  // What the filter admits. Used for framing, for the empty state, and to tell
-  // the map which pins to draw; never to decide which ones exist.
+  // What the filter admits. Fabric-native map components can add and remove
+  // these directly when the filter changes.
   const pins = useMemo(() => groupEventsByVenue(events.filter(matches)), [events, matches]);
-  const shownIds = useMemo(() => new Set(pins.map((p) => p.venue.id)), [pins]);
 
   const corridors = useMemo(
     () => groupByCorridor(events).map((g) => ({ ...g.corridor, stops: g.events.length })),
@@ -140,7 +138,6 @@ export default function MapScreen() {
   useEffect(() => {
     setSelectedVenueId(null);
   }, [corridor, refine]);
-
 
   if (status === "loading") return <Loading />;
   if (status === "error") return <ErrorState message={error.message} onRetry={retry} />;
@@ -191,8 +188,7 @@ export default function MapScreen() {
 
       <View style={{ flex: 1, marginTop: space.sm }}>
         <EventMap
-          pins={allPins}
-          shownIds={shownIds}
+          pins={pins}
           routes={routes}
           activeRoute={corridor}
           focusRegion={focusRegion}

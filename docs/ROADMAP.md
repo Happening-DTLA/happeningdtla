@@ -25,10 +25,11 @@ directory, map, passport and distribution pipeline.
       tickets.
 - [x] Make venue sync require an explicit date so October cannot accidentally
       update September's historical record.
-- [ ] Set up EAS Build with `EXPO_TOKEN` and cut an iOS development build.
-- [ ] Upgrade the development build to `react-native-maps@1.29+`, verify its
-      real Fabric components, then remove the four Expo Go interop workarounds
-      and `docs/map-crashes.md`.
+- [x] Set up EAS Build with `EXPO_TOKEN` and cut an iOS simulator development
+      build. Install the cloud artifact and smoke-test its 56-marker Fabric map.
+- [x] Upgrade the local development build to `react-native-maps@1.29`, verify
+      its real Fabric components in Xcode and the iOS Simulator, then remove
+      the four Expo Go interop workarounds and obsolete crash write-up.
 
 ## 9–13 September — prove it on devices
 

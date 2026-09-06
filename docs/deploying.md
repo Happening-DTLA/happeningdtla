@@ -172,17 +172,17 @@ function logs, which name the failing query.
 
 ## Opening the app away from your laptop
 
-Expo Go does not contain the app. It fetches the JS bundle from Metro at a LAN
-address, so on any other network there is nothing for it to load — the Vercel
-API being public does not help, because that is the data and not the code.
+The development client fetches the JS bundle from Metro at a LAN address, so on
+any other network there is nothing for it to load — the Vercel API being public
+does not help, because that is the data and not the code.
 
 ```bash
 npm run start:anywhere
 ```
 
 Routes the bundle through Expo's tunnel instead of the LAN and points the app
-at the deployed API, so the phone needs the laptop for neither. Then open
-`exp://<host>` in Expo Go, where `<host>` is printed as the tunnel URL.
+at the deployed API. Open the printed development-client URL in the installed
+DTLAHappening development build; Expo Go cannot run this repo's map binary.
 
 The host is derived from the project, not the session, so **it survives a
 restart** — verified by restarting twice and comparing. It contains the word

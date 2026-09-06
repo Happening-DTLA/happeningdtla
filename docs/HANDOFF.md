@@ -1,7 +1,7 @@
 # DTLAHappening — handoff
 
-Rewritten 5 September 2026. Read this, then `AGENTS.md` for the code-level
-rules, then `docs/map-crashes.md` before touching the map.
+Rewritten 6 September 2026. Read this, then `AGENTS.md` for the code-level
+rules before touching the map.
 
 ---
 
@@ -101,52 +101,33 @@ awake only while it runs. See `docs/deploying.md`.
 - **Venue submissions** — the second module, stubbed as "coming soon".
 - **Onboarding** — the profile-type question belongs there when it exists.
 
-## The map: read `docs/map-crashes.md` first
+## The map
 
-The map has now crashed hard five times across four native child-list failure
-modes — `NSRangeException`, no red box, straight to the home screen.
-`react-native-maps@1.20.1` (which **Expo Go SDK 54
-pins and you cannot change**) has no Fabric components, so every MapView, Marker
-and Polyline runs through the legacy interop layer.
+The app now uses `react-native-maps@1.29` in a development client. Xcode compiled
+`RNMapsMapView`, `RNMapsMarker` and their generated Fabric specs, and the iOS
+Simulator loaded the complete 56-stop map. The four Expo Go interop workarounds
+were removed: filters now add and remove markers normally, map children mount
+immediately, markers mount together, and a selected marker can change z-order.
 
-Four cumulative rules keep it alive, all in `apps/mobile/src/EventMap.tsx`.
-Undoing any one brings the crash back:
-
-1. The number of MapView children never changes — filter with `opacity`.
-2. Children are never mounted with the map — wait for `onMapReady`.
-3. Never mount more than one Marker per frame.
-4. Marker `zIndex` never changes, including on selection.
-
-Plus: selection must restyle a marker, never resize it.
-
-**The marker-tap question is resolved.** The iOS Simulator reproduced a harder
-form of the reported symptom: tapping the anchor of a labelled marker crashed
-Expo Go natively with `index 24 beyond bounds [0 .. 1]` (and, on the first run,
-`index 25 beyond bounds [0 .. 2]`). Lifecycle logging showed `EventMap` render
-once with all 56 markers and the selected id; it did not unmount or reset its
-progressive marker count, so the suspected map-subtree remount was ruled out.
-
-The cause was selection changing the marker's `zIndex` from -1 to 2, which the
-legacy Fabric interop layer handles as a native child reorder. Keeping `zIndex`
-at -1 made the exact tap open its sheet normally; switching among nearby
-labelled and unlabelled markers then left every surrounding label in place. The
-sticky placement remains useful against viewport nudges, but it was not the
-missing fix for this failure.
+Expo Go is no longer a supported runtime for this repo because its fixed SDK 54
+binary contains react-native-maps 1.20.1. Use the development client scripts in
+`apps/mobile/package.json`; after any native dependency change, rebuild it.
 
 ## What to do next
 
-Logan now has an **Apple Developer account** and Xcode on this machine. The map
-has been run and checked in the simulator; the next job follows from those new
-capabilities.
+The Expo project is linked as `@logan_tierno/dtlahappening` (project id
+`70169062-3300-4455-b53c-3327511ab869`). EAS build
+`2b343b4e-6e43-4355-8a85-dfe84bd8ba38` produced the first iOS simulator
+development client. That exact cloud artifact was installed in the dedicated
+iPhone 17 Pro simulator: the 56-marker Fabric map rendered, marker selection
+opened its venue sheet, and neighbouring labelled markers remained visible.
 
-1. **Set up EAS Build and cut a development build.** That escapes Expo Go, which
-   means `react-native-maps@1.29` with real Fabric components — and deleting all
-   four workarounds plus `docs/map-crashes.md`. It also unlocks TestFlight so
-   Dino can install the app from a link instead of a tunnel.
-   - `eas login` will fail: Logan's Expo account is Apple SSO and has no
-     password. Use `EXPO_TOKEN` instead — it authenticates as a robot user,
-     which EAS Build accepts (it is the standard CI path). The same token does
-     *not* work for `--tunnel`, which refuses robot users.
+1. **Cut a signed iPhone development build and install it on physical devices.**
+   - The simulator build does not require Apple signing. The next build will
+     need Apple Developer credentials to create or reuse the distribution
+     certificate and provisioning profile.
+   - Authenticate EAS with the gitignored `apps/mobile/.env.eas.local` token;
+     never paste or commit that token.
 
 ## After that
 

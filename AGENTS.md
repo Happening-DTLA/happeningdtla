@@ -68,21 +68,15 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   clone drops the style function; cards render with no background, border or
   row layout. Use `useRouter().push()` instead — identical on iOS, Android
   and web.
-- **Expo SDK is pinned to 54 on purpose.** Expo Go from the App Store lags the
-  newest SDK by several versions. The authoritative field is
-  `data.expoGoSdkVersion` from https://api.expo.dev/v2/versions/latest — NOT the
-  `sdkVersions` list, which includes versions Expo Go cannot run. Expo Go's
-  Settings shows a CFBundleVersion build number, not an SDK version.
-- **`react-native-maps` and `expo-location` DO run in Expo Go on SDK 54.**
-  Verified by loading it on a device, which is the only thing that counts —
-  the entry in `bundledNativeModules.json` pins a *compatible version* and says
-  nothing about what Expo Go actually ships, which is the same trap that made
-  `@clerk/clerk-expo` fail at import. `expo-maps` is a different library and was
-  not tested. The map deliberately sets no `provider`, so iOS uses Apple Maps
-  and needs no API key; a standalone **Android** build uses Google Maps and will
-  need a key in `app.json`.
-- **Reanimated must match Expo Go's compiled copy EXACTLY, and so must
-  `react-native-worklets`.** Reanimated throws "Mismatch between JavaScript
+- **Expo SDK is pinned to 54 on purpose.** The development client and every
+  native dependency must be rebuilt together when that changes. Expo Go is no
+  longer a supported runtime for this repo because the map needs native code
+  newer than Expo Go's fixed binary.
+- **The map deliberately sets no `provider`.** iOS therefore uses Apple Maps
+  and needs no API key. An **Android** development or production build uses
+  Google Maps and will need a key in `app.json`.
+- **Reanimated must match the development client's compiled copy EXACTLY, and
+  so must `react-native-worklets`.** Reanimated throws "Mismatch between JavaScript
   part and native part" when they differ. Two traps here: `expo install
   react-native-reanimated` does NOT install `react-native-worklets`, which
   Reanimated 4 needs as a separate native peer; and a floating `~4.1.1`
@@ -90,7 +84,7 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   workspace root — so the hoisted Reanimated loads 0.8.3 while the app loads
   the correct 0.5.1 nested under apps/mobile, and every screen red-boxes. Both
   are pinned to exact versions, which nests them under apps/mobile and leaves
-  no second copy to collide with.
+  no second copy to collide with. Rebuild the client after changing either one.
 - **Never put Reanimated or worklets in metro's `FORCE_SINGLE`.** It looks like
   the right fix for a duplicate copy and it breaks the app silently. Both ship
   two entry points: `main` is prebuilt output, `react-native` is the SOURCE.
@@ -120,6 +114,10 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
 - **React versions differ per workspace on purpose.** SDK 54 needs React 19.1.0
   while Next 16 wants 19.2.x. Mobile deps are pinned to exact SDK-compatible
   versions so npm nests them; don't "align" them with the web app.
+- **The root `expo-font` pin is deliberate.** `@expo/vector-icons` declares
+  `expo-font >=14.0.4`; without the root devDependency and override npm installs
+  the latest Expo 57 copy beside the SDK 54 copy. Expo Doctor then correctly
+  reports duplicate native modules, and a cloud build can link the wrong one.
 - **`localhost` on a phone is the phone.** `apps/mobile/src/api.ts` derives the
   API host from Expo's `hostUri` so it works on any machine without a
   hardcoded IP.
@@ -164,43 +162,13 @@ listed in `images.qualities` — which defaults to `[75]`, not to "anything from
 Neither error says which parameter was wrong, and a wrong `q` looks exactly
 like a `remotePatterns` miss, so check the number before rewriting the config.
 
-## react-native-maps crashes natively under Fabric in Expo Go
+## The map requires the development build
 
-Expo Go SDK 54 pins react-native-maps 1.20.1, which ships no Fabric
-components, so MapView, Marker and Polyline all run through
-RCTLegacyViewManagerInteropComponentView. That class queues any child mount
-that is not an append onto an already-existing adapter, then replays the queue
-in finalizeUpdates — where nested interop children whose contentView is not
-ready yet fail to grow the array, and later indices overshoot:
+Mobile uses `react-native-maps@1.29`, whose genuine Fabric components avoid the
+native child-list crashes in Expo Go's bundled 1.20.1. **Do not use Expo Go for
+this app.** Run `npm run ios` from the root for an installed development client,
+or `npm run ios:native` after changing native dependencies.
 
-    NSRangeException — -[__NSArrayM insertObject:atIndex:]:
-    index 28 beyond bounds [0 .. 22]
-    ... facebook::react::TelemetryController::pullTransaction
-
-No red box, no JS error: straight to the home screen. Two rules keep the app
-clear of that path, both in EventMap.tsx:
-
-- **Never change the number of MapView children.** Filtering is expressed with
-  the `opacity` prop, not by removing markers.
-- **Never mount children with the map.** Withhold them until `onMapReady`, so
-  the adapter exists and every insert is a plain append.
-- **Selection must not resize a marker.** Restyle it in place — a dot gains a
-  ring, a pill fills with colour. Growing a dot into a labelled pill leaves the
-  native annotation view at its old frame and the pin renders as a bare dot.
-- **Selection must not change a marker's `zIndex`.** Under the legacy Fabric
-  interop layer, changing `zIndex` reorders the MapView child. The queued
-  insertion can replay against a nearly empty AIRMap array and crash with
-  `index 24 beyond bounds [0 .. 1]`. Keep it constant for every state.
-- **Never mount more than one Marker per frame.** A Marker with a custom child
-  is a legacy interop view nested in another one; mount the parent before that
-  child's own `finalizeUpdates` has run and its `contentView` is nil, AIRMap is
-  handed nothing, quietly does not grow its array, and the next index is past
-  the end. Polylines are exempt — they have no React children, which is exactly
-  why eight of them mounted cleanly in the report that showed this.
-
-The real fix is react-native-maps 1.29+, which has genuine Fabric components
-(`RNMapsMapView`, `RNMapsMarker`) and no interop layer at all. That needs a
-development build; it cannot be done inside Expo Go, whose binary is fixed.
-
-Full write-up, including all four crash signatures and how to read the next one:
-`docs/map-crashes.md`.
+After changing any native dependency, rebuild the development client and
+restart Metro with `--clear`. Seeing the app bundle successfully is not proof
+that the installed native binary contains the matching module.

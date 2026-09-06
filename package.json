@@ -6,6 +6,12 @@
     "apps/*",
     "packages/*"
   ],
+  "overrides": {
+    "expo-font": "14.0.12"
+  },
+  "devDependencies": {
+    "expo-font": "14.0.12"
+  },
   "scripts": {
     "dev": "npm run web",
     "web": "npm run dev --workspace apps/web",

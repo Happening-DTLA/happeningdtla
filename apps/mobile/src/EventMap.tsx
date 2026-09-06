@@ -89,14 +89,11 @@ const VenueMarker = memo(function VenueMarker({
   pin,
   selected,
   labelled,
-  hidden,
   onPress,
 }: {
   pin: VenuePin;
   selected: boolean;
   labelled: boolean;
-  /** Filtered out. Still mounted — see the note on EventMap's `pins`. */
-  hidden: boolean;
   onPress: (venueId: string) => void;
 }) {
   // The corridor's own colour, so the map and the printed key agree at a
@@ -111,26 +108,12 @@ const VenueMarker = memo(function VenueMarker({
       coordinate={{ latitude: pin.venue.lat, longitude: pin.venue.lng }}
       onPress={() => onPress(pin.venue.id)}
       /**
-       * Zero alpha is doing two jobs. It hides a pin the filter excludes, and
-       * because UIKit does not hit-test a view below one percent opacity, the
-       * tap falls through to the map and dismisses the sheet — which is what
-       * tapping empty space there should do anyway.
-       */
-      opacity={hidden ? 0 : 1}
-      /**
        * Negative on purpose: on iOS this becomes the annotation layer's
        * zPosition, and MapKit puts its own blue dot at zero, so any positive
-       * value here stacks fifty-six venue pins in front of the one marker
-       * showing where the person is.
-       *
-       * Constant without exception. Under the legacy Fabric interop layer,
-       * changing a selected marker from -1 to 2 made React reorder the MapView
-       * child. The queued insertion replayed against a nearly empty AIRMap
-       * array and crashed natively (`index 24 beyond bounds [0 .. 1]`). The
-       * selected paint and the sheet already make the choice unmistakable; it
-       * must not also change native child order.
+       * value stacks a venue in front of the one marker showing where the
+       * person is. Only the selected venue comes forward.
        */
-      zIndex={-1}
+      zIndex={selected ? 2 : -1}
       // The default callout is a system bubble that cannot be themed and
       // duplicates the sheet below, so the marker owns the whole interaction.
       stopPropagation
@@ -214,7 +197,6 @@ const VenueMarker = memo(function VenueMarker({
 
 export function EventMap({
   pins,
-  shownIds,
   selectedVenueId,
   onSelectVenue,
   showUserLocation,
@@ -225,26 +207,8 @@ export function EventMap({
   routes = [],
   activeRoute = null,
 }: {
-  /**
-   * Every pin for the night, always, in a stable order — never the filtered
-   * subset, and this is load-bearing rather than a preference.
-   *
-   * react-native-maps ships no Fabric components, so on the New Architecture
-   * every MapView and Marker here is driven by RCTLegacyViewManagerInterop-
-   * ComponentView. That class only mounts a child directly when the index is
-   * an append; anything else is queued and replayed later in finalizeUpdates,
-   * which runs its queued INSERTIONS BEFORE its removals. Hand it a
-   * transaction that both drops and adds children — which is precisely what
-   * filtering fifty-six pins down to five is — and it replays an insertion at
-   * an index the list no longer has. That is a native NSRangeException, and
-   * the app is gone: no red box, straight to the home screen.
-   *
-   * So the child list is fixed at mount and never changes again. Filtering is
-   * expressed in props instead.
-   */
+  /** Every pin for the night, in a stable order. */
   pins: VenuePin[];
-  /** Which of them the current filter admits. The rest render invisible. */
-  shownIds: ReadonlySet<string>;
   selectedVenueId: string | null;
   onSelectVenue: (venueId: string | null) => void;
   showUserLocation: boolean;
@@ -269,62 +233,6 @@ export function EventMap({
   // Labels are decided in screen space, so both the viewport and the size of
   // the view it is drawn into have to be known.
   const [size, setSize] = useState({ width: 0, height: 0 });
-
-  /**
-   * Children are withheld until the map itself has mounted, and this is the
-   * fix for a hard crash rather than a nicety.
-   *
-   * react-native-maps ships no Fabric components, so MapView, Marker and
-   * Polyline are all driven by RCTLegacyViewManagerInteropComponentView. That
-   * class inserts a child directly only when its adapter already exists AND
-   * the index is an append; otherwise the mount is queued and replayed later
-   * in finalizeUpdates. On a first mount the adapter does not exist yet, so
-   * all sixty-four children queue — and replaying that many nested interop
-   * views does not reliably grow the array, because a child's contentView can
-   * still be nil when the parent drains. Later indices then overshoot:
-   *
-   *     NSRangeException — insertObject:atIndex: index 28 beyond bounds [0..22]
-   *
-   * and the app is gone with no JS error. Mounting the map empty first means
-   * the adapter exists before any child arrives, so every insert is an append
-   * and takes the direct path. The queue is never used.
-   *
-   * The timer is a backstop: if onMapReady never fires we would otherwise show
-   * a map with no pins at all, which is worse than the crash it prevents.
-   */
-  const [mapMounted, setMapMounted] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setMapMounted(true), 350);
-    return () => clearTimeout(timer);
-  }, []);
-
-  /**
-   * Markers arrive one per frame, and the crash report is what says one.
-   *
-   *     index 11 beyond bounds [0 .. 9]
-   *
-   * Nine is eight polylines plus a single marker. The polylines all landed and
-   * the first marker landed; the second did not, and every index after it was
-   * then off by one. The difference between them is the whole thing: a
-   * Polyline has no React children, while a Marker's child is our own view —
-   * a legacy interop view nested inside another one. Mount the parent before
-   * that child's own finalizeUpdates has run and its contentView is still nil,
-   * so AIRMap is handed nothing, quietly does not grow its array, and the next
-   * insert is past the end.
-   *
-   * A frame between each one is enough for the child to finish. Growing by
-   * appending is also the safe direction: an append is the case the interop
-   * view handles directly, and the count still never shrinks, which is the
-   * rule that fixed the first crash. Fifty-six frames is about a second, and
-   * pins arriving in sequence reads as the map filling in rather than as a
-   * fault.
-   */
-  const [markersMounted, setMarkersMounted] = useState(0);
-  useEffect(() => {
-    if (!mapMounted || markersMounted >= pins.length) return;
-    const frame = requestAnimationFrame(() => setMarkersMounted((n) => n + 1));
-    return () => cancelAnimationFrame(frame);
-  }, [mapMounted, markersMounted, pins.length]);
   const viewport = useRef<MapRegion>(region);
   const [settled, setSettled] = useState(() => quantise(region));
 
@@ -342,18 +250,14 @@ export function EventMap({
    * boxes are still measured where the pins really are — only the DECISION to
    * recompute is quantised, never the geometry.
    */
-  // Only what is on show competes for a label; a hidden pin winning a slot
-  // would leave a gap where a name should be.
-  const shown = useMemo(() => pins.filter((p) => shownIds.has(p.venue.id)), [pins, shownIds]);
-
   // What is labelled right now, so the next placement can prefer to keep it.
   const held = useRef<ReadonlySet<string>>(new Set());
   const labelled = useMemo(() => {
-    const next = placeLabels({ pins: shown, region: viewport.current, size, sticky: held.current });
+    const next = placeLabels({ pins, region: viewport.current, size, sticky: held.current });
     held.current = next;
     return next;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shown, size.width, size.height, settled]);
+  }, [pins, size.width, size.height, settled]);
 
   // Animated rather than re-mounted: `initialRegion` only applies once, so a
   // changed region prop would do nothing at all.
@@ -400,12 +304,11 @@ export function EventMap({
         userInterfaceStyle="dark"
         showsUserLocation={showUserLocation}
         showsMyLocationButton={false}
-        showsPointsOfInterest={false}
+        showsPointsOfInterests={false}
         showsCompass={false}
         toolbarEnabled={false}
         // Tapping the map itself dismisses the sheet, the way a modal does.
         onPress={() => onSelectVenue(null)}
-        onMapReady={() => setMapMounted(true)}
         onRegionChangeComplete={(next) => {
           viewport.current = next;
           const key = quantise(next);
@@ -418,32 +321,30 @@ export function EventMap({
             the printed key shows. One selected: that street thickens and the
             rest recede rather than vanishing, so the chosen stretch is read in
             the context of the ones around it. */}
-        {mapMounted &&
-          routes.map((route) =>
-            route.path.map((run, i) => {
-              const active = activeRoute === route.slug;
-              const dimmed = activeRoute !== null && !active;
-              return (
-                <Polyline
-                  key={`${route.slug}-${i}`}
-                  coordinates={run.map(([latitude, longitude]) => ({ latitude, longitude }))}
-                  strokeColor={withAlpha(route.color, dimmed ? 0.22 : active ? 1 : 0.75)}
-                  strokeWidth={active ? 7 : 4}
-                  lineCap="round"
-                  lineJoin="round"
-                  zIndex={active ? 2 : 1}
-                />
-              );
-            }),
-          )}
+        {routes.map((route) =>
+          route.path.map((run, i) => {
+            const active = activeRoute === route.slug;
+            const dimmed = activeRoute !== null && !active;
+            return (
+              <Polyline
+                key={`${route.slug}-${i}`}
+                coordinates={run.map(([latitude, longitude]) => ({ latitude, longitude }))}
+                strokeColor={withAlpha(route.color, dimmed ? 0.22 : active ? 1 : 0.75)}
+                strokeWidth={active ? 7 : 4}
+                lineCap="round"
+                lineJoin="round"
+                zIndex={active ? 2 : 1}
+              />
+            );
+          }),
+        )}
 
-        {pins.slice(0, markersMounted).map((pin) => (
+        {pins.map((pin) => (
           <VenueMarker
             key={pin.venue.id}
             pin={pin}
             selected={pin.venue.id === selectedVenueId}
             labelled={labelled.has(pin.venue.id)}
-            hidden={!shownIds.has(pin.venue.id)}
             onPress={onSelectVenue}
           />
         ))}
