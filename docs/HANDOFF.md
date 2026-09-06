@@ -75,7 +75,8 @@ awake only while it runs. See `docs/deploying.md`.
   device with best-effort anonymous sync. Endpoint verified idempotent.
 - **Artist submissions** — modelled field-for-field on the organisers' own form,
   with the artwork list as real columns rather than filename conventions.
-- **Venue sync** — `npm run sync:artnight` (add `-- --apply` to write).
+- **Venue sync** — name the target night explicitly:
+  `npm run sync:artnight -- --date=2026-10-01` (add `--apply` to write).
 
 ### Blocked on Logan, not on code
 
@@ -102,42 +103,45 @@ awake only while it runs. See `docs/deploying.md`.
 
 ## The map: read `docs/map-crashes.md` first
 
-The map crashed hard three times — native `NSRangeException`, no red box,
-straight to the home screen. `react-native-maps@1.20.1` (which **Expo Go SDK 54
+The map has now crashed hard five times across four native child-list failure
+modes — `NSRangeException`, no red box, straight to the home screen.
+`react-native-maps@1.20.1` (which **Expo Go SDK 54
 pins and you cannot change**) has no Fabric components, so every MapView, Marker
 and Polyline runs through the legacy interop layer.
 
-Three cumulative rules keep it alive, all in `apps/mobile/src/EventMap.tsx`.
+Four cumulative rules keep it alive, all in `apps/mobile/src/EventMap.tsx`.
 Undoing any one brings the crash back:
 
 1. The number of MapView children never changes — filter with `opacity`.
 2. Children are never mounted with the map — wait for `onMapReady`.
 3. Never mount more than one Marker per frame.
+4. Marker `zIndex` never changes, including on selection.
 
 Plus: selection must restyle a marker, never resize it.
 
-**There is one open question.** Logan reports that tapping a marker sometimes
-makes *labelled* markers near it disappear. The last change made label placement
-sticky — an incumbent keeps its label — which is the right defence against the
-suspected cause (MapKit nudges the map when an annotation is tapped, which
-re-runs placement). **It is unconfirmed.** A test could not reproduce the
-original symptom, only prove the new behaviour holds. If it still happens, the
-next hypothesis is that the map subtree is remounting, which would unmount every
-marker and re-add them one per frame — that has a visible signature, since pins
-would reappear in sequence over about a second.
+**The marker-tap question is resolved.** The iOS Simulator reproduced a harder
+form of the reported symptom: tapping the anchor of a labelled marker crashed
+Expo Go natively with `index 24 beyond bounds [0 .. 1]` (and, on the first run,
+`index 25 beyond bounds [0 .. 2]`). Lifecycle logging showed `EventMap` render
+once with all 56 markers and the selected id; it did not unmount or reset its
+progressive marker count, so the suspected map-subtree remount was ruled out.
 
-## What to do first
+The cause was selection changing the marker's `zIndex` from -1 to 2, which the
+legacy Fabric interop layer handles as a native child reorder. Keeping `zIndex`
+at -1 made the exact tap open its sheet normally; switching among nearby
+labelled and unlabelled markers then left every surrounding label in place. The
+sticky placement remains useful against viewport nudges, but it was not the
+missing fix for this failure.
 
-Logan now has an **Apple Developer account** and Xcode on this machine. Both of
-those change what is possible, and the first two jobs follow from them.
+## What to do next
 
-1. **Run the app in the simulator and look at it.** No previous session could —
-   the old machine has no Xcode — so every visual change so far was shipped
-   unverified and a few were wrong. Check the map's tap behaviour against the
-   open question above.
-2. **Set up EAS Build and cut a development build.** That escapes Expo Go, which
+Logan now has an **Apple Developer account** and Xcode on this machine. The map
+has been run and checked in the simulator; the next job follows from those new
+capabilities.
+
+1. **Set up EAS Build and cut a development build.** That escapes Expo Go, which
    means `react-native-maps@1.29` with real Fabric components — and deleting all
-   three workarounds plus `docs/map-crashes.md`. It also unlocks TestFlight so
+   four workarounds plus `docs/map-crashes.md`. It also unlocks TestFlight so
    Dino can install the app from a link instead of a tunnel.
    - `eas login` will fail: Logan's Expo account is Apple SSO and has no
      password. Use `EXPO_TOKEN` instead — it authenticates as a robot user,

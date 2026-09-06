@@ -121,18 +121,16 @@ const VenueMarker = memo(function VenueMarker({
        * Negative on purpose: on iOS this becomes the annotation layer's
        * zPosition, and MapKit puts its own blue dot at zero, so any positive
        * value here stacks fifty-six venue pins in front of the one marker
-       * showing where the person is. A pin you have deliberately tapped goes
-       * in front, because at that point it is what you asked to look at.
+       * showing where the person is.
        *
-       * Constant otherwise — and that matters more than it looks. Setting this
-       * prop calls the native setter, which writes `layer.zPosition`, which
-       * fires a KVO observer the library installs on that exact key path and
-       * which writes it straight back. Deriving the value from `labelled` sent
-       * fifty-six of those through that re-entrant path on every pan, while
-       * MapKit was itself rewriting zPosition to depth-sort the annotations.
-       * Selection is a deliberate, occasional act; map movement is continuous.
+       * Constant without exception. Under the legacy Fabric interop layer,
+       * changing a selected marker from -1 to 2 made React reorder the MapView
+       * child. The queued insertion replayed against a nearly empty AIRMap
+       * array and crashed natively (`index 24 beyond bounds [0 .. 1]`). The
+       * selected paint and the sheet already make the choice unmistakable; it
+       * must not also change native child order.
        */
-      zIndex={selected ? 2 : -1}
+      zIndex={-1}
       // The default callout is a system bubble that cannot be themed and
       // duplicates the sheet below, so the marker owns the whole interaction.
       stopPropagation

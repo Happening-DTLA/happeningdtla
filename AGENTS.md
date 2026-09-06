@@ -187,6 +187,10 @@ clear of that path, both in EventMap.tsx:
 - **Selection must not resize a marker.** Restyle it in place — a dot gains a
   ring, a pill fills with colour. Growing a dot into a labelled pill leaves the
   native annotation view at its old frame and the pin renders as a bare dot.
+- **Selection must not change a marker's `zIndex`.** Under the legacy Fabric
+  interop layer, changing `zIndex` reorders the MapView child. The queued
+  insertion can replay against a nearly empty AIRMap array and crash with
+  `index 24 beyond bounds [0 .. 1]`. Keep it constant for every state.
 - **Never mount more than one Marker per frame.** A Marker with a custom child
   is a legacy interop view nested in another one; mount the parent before that
   child's own `finalizeUpdates` has run and its `contentView` is nil, AIRMap is
@@ -198,5 +202,5 @@ The real fix is react-native-maps 1.29+, which has genuine Fabric components
 (`RNMapsMapView`, `RNMapsMarker`) and no interop layer at all. That needs a
 development build; it cannot be done inside Expo Go, whose binary is fixed.
 
-Full write-up, including all three crash reports and how to read the next one:
+Full write-up, including all four crash signatures and how to read the next one:
 `docs/map-crashes.md`.

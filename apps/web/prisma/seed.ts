@@ -30,9 +30,10 @@ if (!isLocal && process.env.ALLOW_REMOTE_SEED !== "1") {
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 const ART_NIGHT = new Date("2026-10-01T00:00:00Z");
-/** 2026-10-01, 18:00 Pacific = 01:00 UTC on the 2nd. */
+const DEMO_NIGHT = new Date("2026-10-15T00:00:00Z");
+/** 2026-10-15, 18:00 Pacific = 01:00 UTC on the 16th. */
 const at = (hourPT: number, minute = 0) =>
-  new Date(Date.UTC(2026, 9, 1 + (hourPT >= 24 ? 1 : 0), (hourPT % 24) + 7, minute));
+  new Date(Date.UTC(2026, 9, 15 + (hourPT >= 24 ? 1 : 0), (hourPT % 24) + 7, minute));
 
 async function main() {
   console.log("→ clearing existing data…");
@@ -145,15 +146,15 @@ async function main() {
     lat: 34.0470, lng: -118.2400, capacity: 120,
   });
 
-  console.log("→ the night…");
-  const night = await prisma.night.create({
+  console.log("→ the ticketing demo night…");
+  const demoNight = await prisma.night.create({
     data: {
-      name: "Art Night DTLA — October 2026",
-      slug: "art-night-2026-10",
-      date: ART_NIGHT,
-      isPublished: true,
+      name: "Ticketing Demo — October 2026",
+      slug: "ticketing-demo-2026-10",
+      date: DEMO_NIGHT,
+      isPublished: false,
       description:
-        "First Thursday. Galleries, studios and rooftops across Downtown open their doors from 6pm until late.",
+        "Unpublished fixtures for exercising checkout, fulfilment and door scanning.",
     },
   });
 
@@ -185,7 +186,7 @@ async function main() {
   };
 
   const inkAndIron = await makeEvent({
-    organizerId: nightshade.id, venueId: foundry.id, nightId: night.id,
+    organizerId: nightshade.id, venueId: foundry.id, nightId: demoNight.id,
     title: "Ink & Iron: Opening Night", slug: "ink-and-iron-opening",
     category: "ART",
     description: "Twelve printmakers and metalworkers show new work in the main hall.",
@@ -197,7 +198,7 @@ async function main() {
   });
 
   await makeEvent({
-    organizerId: nightshade.id, venueId: alameda.id, nightId: night.id,
+    organizerId: nightshade.id, venueId: alameda.id, nightId: demoNight.id,
     title: "Basement Sessions: Live Set", slug: "basement-sessions-oct",
     category: "MUSIC",
     description: "Three acts, one long set, no phones on stage.",
@@ -206,7 +207,7 @@ async function main() {
   });
 
   await makeEvent({
-    organizerId: nightshade.id, venueId: rooftop.id, nightId: night.id,
+    organizerId: nightshade.id, venueId: rooftop.id, nightId: demoNight.id,
     title: "Rooftop Afterparty", slug: "rooftop-afterparty-oct",
     category: "NIGHTLIFE",
     description: "The night ends up here. Open air, DJ until 2.",
@@ -218,7 +219,7 @@ async function main() {
   });
 
   await makeEvent({
-    organizerId: galleryRow.id, venueId: vault.id, nightId: night.id,
+    organizerId: galleryRow.id, venueId: vault.id, nightId: demoNight.id,
     title: "Vault Projections", slug: "vault-projections-oct",
     category: "ART",
     description: "Looping video work inside the old bank vault. Walk in, walk out.",
@@ -227,7 +228,7 @@ async function main() {
   });
 
   await makeEvent({
-    organizerId: galleryRow.id, venueId: springSt.id, nightId: night.id,
+    organizerId: galleryRow.id, venueId: springSt.id, nightId: demoNight.id,
     title: "Portrait Marathon", slug: "portrait-marathon-oct",
     category: "WORKSHOP",
     description: "Sit for a 10-minute portrait. Take it home.",
@@ -236,7 +237,7 @@ async function main() {
   });
 
   await makeEvent({
-    organizerId: littleTokyo.id, venueId: mikado.id, nightId: night.id,
+    organizerId: littleTokyo.id, venueId: mikado.id, nightId: demoNight.id,
     title: "Sumi-e Live Demo", slug: "sumi-e-demo-oct",
     category: "WORKSHOP",
     description: "Brush painting demonstration and open practice table.",
@@ -360,14 +361,14 @@ async function main() {
   });
 
   // -------------------------------------------------------------------------
-  // DTLA ArtNight — Thursday 3 September 2026
+  // DTLA ArtNight — Thursday 1 October 2026
   //
   // The real night, transcribed from the organisers' printed map. Fifty
   // destinations across eight colour-coded corridors. Free to attend, which is
   // why every opening here carries a single zero-price tier rather than a
   // checkout: on ArtNight you walk in.
   // -------------------------------------------------------------------------
-  console.log("→ DTLA ArtNight (3 Sep): corridors, venues, openings…");
+  console.log("→ DTLA ArtNight (1 Oct): corridors, venues, openings…");
 
   const corridorId = new Map<string, string>();
   for (const c of ART_NIGHT_CORRIDORS) {
@@ -393,11 +394,11 @@ async function main() {
     },
   });
 
-  const septNight = await prisma.night.create({
+  const artNight = await prisma.night.create({
     data: {
-      name: "DTLA ArtNight — September 2026",
-      slug: "art-night-2026-09",
-      date: new Date("2026-09-03T00:00:00Z"),
+      name: "DTLA ArtNight — October 2026",
+      slug: "art-night-2026-10",
+      date: ART_NIGHT,
       isPublished: true,
       description:
         // No counts in the prose. The directory computes them from the night
@@ -409,11 +410,11 @@ async function main() {
     },
   });
 
-  // 6pm–11pm Pacific on 3 September, which is PDT — so 01:00 to 06:00 UTC the
+  // 6pm–11pm Pacific on 1 October, which is PDT — so 01:00 to 06:00 UTC the
   // NEXT day. Written as UTC instants rather than local ones for the reason
   // documented in packages/core/src/datetime.ts.
-  const OPENS = new Date("2026-09-04T01:00:00Z");
-  const CLOSES = new Date("2026-09-04T06:00:00Z");
+  const OPENS = new Date("2026-10-02T01:00:00Z");
+  const CLOSES = new Date("2026-10-02T06:00:00Z");
 
   const categoryFor = (name: string): Category => {
     const n = name.toLowerCase();
@@ -443,11 +444,11 @@ async function main() {
     await makeEvent({
       organizerId: artNightOrg.id,
       venueId: venue.id,
-      nightId: septNight.id,
+      nightId: artNight.id,
       title: `${v.name} — ArtNight`,
-      slug: `an-${v.slug}-2026-09`,
+      slug: `an-${v.slug}-2026-10`,
       category: categoryFor(v.name),
-      description: `Open for DTLA ArtNight on Thursday 3 September, 6pm until late.`,
+      description: `Open for DTLA ArtNight on Thursday 1 October, 6pm until late.`,
       startsAt: OPENS,
       endsAt: CLOSES,
       tiers: [{ name: "Free entry", priceCents: 0, quantity: 1000 }],
@@ -457,8 +458,8 @@ async function main() {
   const pinned = ART_NIGHT_VENUES.filter((v) => v.lat !== null).length;
 
   console.log("\n✓ Seed complete.");
-  console.log(`  ArtNight: ${septNight.name} — ${ART_NIGHT_VENUES.length} venues, ${ART_NIGHT_CORRIDORS.length} corridors, ${pinned} pinned on the map`);
-  console.log(`  Night:   ${night.name}`);
+  console.log(`  ArtNight: ${artNight.name} — ${ART_NIGHT_VENUES.length} venues, ${ART_NIGHT_CORRIDORS.length} corridors, ${pinned} pinned on the map`);
+  console.log(`  Demo:     ${demoNight.name}`);
   console.log(`  Venues:  6   Events: 13   Organizers: 3`);
   console.log(`  Demo login email: ${attendee.email}`);
   console.log(`  Scannable ticket codes:`);

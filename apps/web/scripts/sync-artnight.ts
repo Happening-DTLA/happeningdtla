@@ -15,12 +15,17 @@
  * organising idea survives without anyone hand-maintaining a mapping that
  * would drift the moment a venue is added.
  *
- * Dry run by default. Pass --apply to write.
+ * A target date is required so a new month cannot accidentally update the
+ * previous month's historical record. Dry run by default. Pass --apply to
+ * write. `--move-non-artnight-to-demo` is the one-time safe conversion for a
+ * Night that began life with ticketing fixtures: their event ids, orders and
+ * tickets stay intact, but they move under a separate unpublished demo Night.
  *
- *   npx tsx scripts/sync-artnight.ts
- *   npx tsx scripts/sync-artnight.ts --apply
+ *   npx tsx scripts/sync-artnight.ts --date=2026-10-01
+ *   npx tsx scripts/sync-artnight.ts --date=2026-10-01 --apply
  */
 import "dotenv/config";
+import { pacificDayRange } from "@dtlahappening/core";
 
 // The sync targets the DEPLOYED database, not the local one. Without this the
 // command would quietly update a laptop's copy and look like it worked.
@@ -92,6 +97,48 @@ const FIELD_PHOTOS = "6a1dfc4d6964911bfea5fb4b";
  */
 const IMAGE_BASE = "https://maps.dtlaartnight.com";
 
+function targetFor(args: string[]) {
+  const day = args.find((arg) => arg.startsWith("--date="))?.slice("--date=".length);
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    throw new Error("Pass the Art Night calendar date explicitly, e.g. --date=2026-10-01");
+  }
+
+  const date = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== day) {
+    throw new Error(`Invalid Art Night date: ${day}`);
+  }
+
+  const range = pacificDayRange(day);
+  if (!range) throw new Error(`Invalid Art Night date: ${day}`);
+
+  const yearMonth = day.slice(0, 7);
+  const monthYear = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+  const calendarLabel = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+
+  return {
+    day,
+    date,
+    yearMonth,
+    monthYear,
+    calendarLabel,
+    nightSlug: `art-night-${yearMonth}`,
+    // Art Night is 6pm–11pm Pacific. The event is never on a DST transition
+    // day (those are Sundays), so adding wall-clock hours to Pacific midnight
+    // produces the exact instants without a hardcoded UTC offset.
+    opens: new Date(range.start.getTime() + 18 * 60 * 60 * 1000),
+    closes: new Date(range.start.getTime() + 23 * 60 * 60 * 1000),
+  };
+}
+
 const slugify = (s: string) =>
   "an-" +
   s.normalize("NFKD").replace(/[̀-ͯ]/g, "")
@@ -122,8 +169,11 @@ function toPath(lat: number, lng: number, path: number[][][]): number {
 
 async function main() {
   const apply = process.argv.includes("--apply");
+  const moveNonArtNight = process.argv.includes("--move-non-artnight-to-demo");
+  const targetNight = targetFor(process.argv.slice(2));
   const target = (process.env.DATABASE_URL ?? "").replace(/:\/\/[^@]*@/, "://****@");
   console.log(`target: ${target.split("?")[0] || "(unset)"}\n`);
+  console.log(`night:  ${targetNight.nightSlug} (${targetNight.day})\n`);
 
   const res = await fetch(POINTS, { headers: { "user-agent": "DTLAHappening/0.1" } });
   if (!res.ok) throw new Error(`map returned ${res.status}`);
@@ -132,16 +182,39 @@ async function main() {
   console.log(`fetched ${points.length} points, ${live.length} usable\n`);
 
   const corridors = await prisma.corridor.findMany({ orderBy: { sortOrder: "asc" } });
-  const night = await prisma.night.findUnique({ where: { slug: "art-night-2026-09" } });
-  if (!night) throw new Error("night art-night-2026-09 not found — run the seed first");
+  let night = await prisma.night.findUnique({ where: { slug: targetNight.nightSlug } });
   const organizer = await prisma.organizer.findUnique({ where: { slug: "dtla-artnight" } });
   if (!organizer) throw new Error("organizer dtla-artnight not found — run the seed first");
+
+  const nightData = {
+    name: `DTLA ArtNight — ${targetNight.monthYear}`,
+    date: targetNight.date,
+    description:
+      "Explore galleries, restaurants, bars, performance spaces and cultural destinations across Downtown LA. Doors open at 6pm and stay open late.",
+  };
+  if (apply) {
+    night = await prisma.night.upsert({
+      where: { slug: targetNight.nightSlug },
+      create: { slug: targetNight.nightSlug, ...nightData, isPublished: false },
+      update: nightData,
+    });
+  } else if (!night) {
+    console.log(`would create ${nightData.name}\n`);
+  }
 
   // Far enough that a venue on a corridor's street is caught, close enough
   // that one three blocks away is not filed under it.
   const CORRIDOR_RADIUS = 140;
 
-  let created = 0, updated = 0, pinned = 0, unassigned = 0;
+  const targetEventSlugs = live.map((point) => `${slugify(point.name)}-${targetNight.yearMonth}`);
+  const existingEvents = new Map(
+    (await prisma.event.findMany({
+      where: { slug: { in: targetEventSlugs } },
+      select: { id: true, slug: true },
+    })).map((event) => [event.slug, event]),
+  );
+
+  let created = 0, updated = 0, eventsCreated = 0, eventsUpdated = 0, pinned = 0, unassigned = 0;
   const tagged = new Map<string, number>();
   let withSite = 0, withBlurb = 0, withPhotos = 0, photoCount = 0;
   for (const p of live) {
@@ -208,29 +281,47 @@ async function main() {
     };
 
     const existing = await prisma.venue.findUnique({ where: { slug } });
+    const eventSlug = `${slug}-${targetNight.yearMonth}`;
+    const event = existingEvents.get(eventSlug);
+    if (event) eventsUpdated++;
+    else eventsCreated++;
     if (apply) {
       const venue = existing
         ? await prisma.venue.update({ where: { slug }, data })
         : await prisma.venue.create({ data: { ...data, slug } });
-      const eventSlug = `${slug}-2026-09`;
-      const event = await prisma.event.findUnique({ where: { slug: eventSlug } });
       if (!event) {
         await prisma.event.create({
           data: {
-            organizerId: organizer.id, venueId: venue.id, nightId: night.id,
+            organizerId: organizer.id, venueId: venue.id, nightId: night!.id,
             title: `${p.name} — ArtNight`, slug: eventSlug,
-            description: "Open for DTLA ArtNight, 6pm until late.",
-            startsAt: new Date("2026-09-04T01:00:00Z"),
-            endsAt: new Date("2026-09-04T06:00:00Z"),
+            description: `Open for DTLA ArtNight on ${targetNight.calendarLabel}, 6pm until late.`,
+            startsAt: targetNight.opens,
+            endsAt: targetNight.closes,
             status: "PUBLISHED", category: meta.category, isFree: true, fromPriceCents: 0,
             ticketTypes: { create: [{ name: "Free entry", priceCents: 0, quantity: 1000, sortOrder: 0 }] },
           },
         });
       } else {
-        await prisma.event.update({ where: { slug: eventSlug }, data: { category: meta.category, venueId: venue.id } });
+        await prisma.event.update({
+          where: { slug: eventSlug },
+          data: {
+            organizerId: organizer.id,
+            venueId: venue.id,
+            nightId: night!.id,
+            title: `${p.name} — ArtNight`,
+            description: `Open for DTLA ArtNight on ${targetNight.calendarLabel}, 6pm until late.`,
+            startsAt: targetNight.opens,
+            endsAt: targetNight.closes,
+            status: "PUBLISHED",
+            category: meta.category,
+            isFree: true,
+            fromPriceCents: 0,
+          },
+        });
       }
     }
-    existing ? updated++ : created++;
+    if (existing) updated++;
+    else created++;
     pinned++;
     if (website) withSite++;
     if (photoUrls.length) { withPhotos++; photoCount += photoUrls.length; }
@@ -247,19 +338,64 @@ async function main() {
   // may hold a ticket to something there, and a sync that deletes rows is one
   // upstream outage away from emptying the app.
   const liveSlugs = new Set(live.map((p) => slugify(p.name)));
-  const stale = await prisma.event.findMany({
-    where: {
-      nightId: night.id,
-      status: "PUBLISHED",
-      venue: { organizerId: organizer.id, slug: { notIn: [...liveSlugs] } },
-    },
-    select: { id: true, slug: true, venue: { select: { name: true } } },
-  });
+  const stale = night
+    ? await prisma.event.findMany({
+        where: {
+          nightId: night.id,
+          status: "PUBLISHED",
+          venue: { organizerId: organizer.id, slug: { notIn: [...liveSlugs] } },
+        },
+        select: { id: true, slug: true, venue: { select: { name: true } } },
+      })
+    : [];
+
+  // The October production row began life as a ticketing demo. Moving those
+  // fixtures is explicit. The events themselves are not unpublished or
+  // recreated: preserving their ids keeps every existing order and ticket
+  // valid while removing them from the public Art Night directory.
+  const nonArtNight = moveNonArtNight && night
+    ? await prisma.event.findMany({
+        where: {
+          nightId: night.id,
+          status: "PUBLISHED",
+          organizerId: { not: organizer.id },
+        },
+        select: {
+          id: true,
+          slug: true,
+          title: true,
+          _count: { select: { orders: true } },
+        },
+      })
+    : [];
 
   if (apply && stale.length) {
     await prisma.event.updateMany({
       where: { id: { in: stale.map((e) => e.id) } },
       data: { status: "DRAFT" },
+    });
+  }
+  if (apply && nonArtNight.length) {
+    const demoNight = await prisma.night.upsert({
+      where: { slug: `ticketing-demo-${targetNight.yearMonth}` },
+      create: {
+        slug: `ticketing-demo-${targetNight.yearMonth}`,
+        name: `Ticketing Demo — ${targetNight.monthYear}`,
+        date: targetNight.date,
+        description: "Unpublished fixtures for exercising checkout, fulfilment and door scanning.",
+        isPublished: false,
+      },
+      update: { isPublished: false },
+    });
+    await prisma.event.updateMany({
+      where: { id: { in: nonArtNight.map((event) => event.id) } },
+      data: { nightId: demoNight.id },
+    });
+  }
+  if (apply) {
+    await prisma.night.update({
+      where: { id: night!.id },
+      data: { isPublished: true },
     });
   }
 
@@ -268,8 +404,16 @@ async function main() {
     console.log(`  unpublished (no longer on the map): ${stale.length}`);
     for (const e of stale) console.log(`    ${e.venue.name}`);
   }
+  if (nonArtNight.length) {
+    console.log(`  moved to unpublished demo night: ${nonArtNight.length}`);
+    for (const event of nonArtNight) {
+      console.log(`    ${event.title} (${event._count.orders} order${event._count.orders === 1 ? "" : "s"})`);
+    }
+  }
   console.log(`  venues created  ${created}`);
   console.log(`  venues updated  ${updated}`);
+  console.log(`  events created  ${eventsCreated}`);
+  console.log(`  events updated  ${eventsUpdated}`);
   console.log(`  all with coordinates: ${pinned}`);
   console.log(`  outside every corridor (>${CORRIDOR_RADIUS}m): ${unassigned}`);
   console.log(`  with a website  ${withSite}`);

@@ -17,6 +17,7 @@ import {
   pacificWeekendRange,
   relativeEventTime,
 } from "@dtlahappening/core";
+import { currentNightDate } from "../src/lib/night-date";
 
 let failures = 0;
 const check = (label: string, ok: boolean, detail = "") => {
@@ -33,6 +34,18 @@ eq("8:30pm Pacific is still today", pacificToday(new Date("2026-10-02T03:30:00Z"
 eq("00:30 Pacific is today", pacificToday(new Date("2026-10-01T07:30:00Z")), "2026-10-01");
 eq("one minute to Pacific midnight", pacificToday(new Date("2026-10-02T06:59:00Z")), "2026-10-01");
 eq("Pacific midnight rolls over", pacificToday(new Date("2026-10-02T07:00:00Z")), "2026-10-02");
+
+console.log("\ncurrentNightDate — Postgres date lower bound");
+eq(
+  "8:30pm Pacific still includes the October 1 night",
+  currentNightDate(new Date("2026-10-02T03:30:00Z")).toISOString(),
+  "2026-10-01T00:00:00.000Z",
+);
+eq(
+  "Pacific midnight advances the lower bound",
+  currentNightDate(new Date("2026-10-02T07:00:00Z")).toISOString(),
+  "2026-10-02T00:00:00.000Z",
+);
 
 console.log("\npacificToday — across the DST fallback (1 Nov 2026)");
 eq("01:30 PDT, before the fallback", pacificToday(new Date("2026-11-01T08:30:00Z")), "2026-11-01");

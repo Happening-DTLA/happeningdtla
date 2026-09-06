@@ -1,6 +1,6 @@
 # The map crash: react-native-maps under Fabric
 
-Three hard crashes in this app came from one mechanism. Each looked different,
+Four hard-crash modes in this app came from one mechanism. Each looked different,
 each was diagnosed from a single number in the crash report, and the fixes are
 cumulative — remove any one of them and the crash comes back. This is the whole
 picture so nobody has to reconstruct it a fourth time.
@@ -80,7 +80,7 @@ the time.
 Queued indices are replayed against whatever the array looks like *now*, which
 is not what it looked like when they were queued.
 
-## The three failures, and what each number meant
+## The four failures, and what each number meant
 
 Read `exceptionReason.arguments`: `[selector, requestedIndex, upperBound]`. The
 upper bound is the array's count, and it identifies which view is in trouble.
@@ -127,9 +127,28 @@ explanation rather than a proven one.)*
 **Fix: markers mount one per frame.** A frame is enough for the child to
 finish. Appending is also the safe direction, and the count still only grows.
 
+### 4. `index 24 beyond bounds [0 .. 1]` — selection changed child order
+
+This one was reproduced twice in the iOS Simulator by tapping the anchor of a
+labelled marker. The second run had behavior-neutral lifecycle logging in
+place: `EventMap` rendered with all 56 markers and the selected venue id, never
+unmounted, and never reset its progressive marker count. That rules out the
+suspected map-subtree remount.
+
+Selection was changing the marker's `zIndex` from -1 to 2. Under the legacy
+Fabric interop layer that is a child reorder, not merely a paint update. The
+insertion was queued and replayed at its old index after AIRMap's child array
+had been reduced to one entry, producing the crash. The first reproduction was
+the same path with `index 25 beyond bounds [0 .. 2]`.
+
+**Fix: `zIndex` never changes, including on selection.** Holding it at -1 made
+the same labelled-marker tap open the sheet normally. Switching between nearby
+labelled and unlabelled markers then kept every surrounding pin and label in
+place.
+
 ## The rules
 
-All three live in `apps/mobile/src/EventMap.tsx`. Undoing any one brings the
+All four live in `apps/mobile/src/EventMap.tsx`. Undoing any one brings the
 crash back.
 
 1. **The number of MapView children never changes.** Filter with `opacity`,
@@ -137,16 +156,16 @@ crash back.
 2. **Children are never mounted with the map.** Withhold until `onMapReady`.
 3. **Never mount more than one Marker per frame.** Polylines are exempt: they
    have no React children.
+4. **Never change marker `zIndex`.** A selected marker is painted differently
+   inside the same box; it does not move in the native child order. Setting
+   `zIndex` writes `layer.zPosition`, which also fires a KVO observer the
+   library installs on that key path and which writes it straight back.
 
-Two more, learned alongside:
+One more, learned alongside:
 
 - **`tracksViewChanges` does nothing here.** It is exported only by the
   Google-provider marker manager; `AIRMapMarkerManager.m` never lists it. The
   state and timer behind it cost two extra renders per marker for nothing.
-- **Keep `zIndex` constant per marker.** Setting it writes `layer.zPosition`,
-  which fires a KVO observer the library installs on that key path and which
-  writes it straight back. Deriving it from something that changes while the
-  map moves sends every marker through that re-entrant path continuously.
 
 ## The same constraint, without a crash
 
@@ -168,7 +187,7 @@ Label placement no longer knows what is selected at all.
 `react-native-maps@1.29+` has real Fabric components and no interop layer, so
 none of the above applies. It needs a **development build** — Expo Go's binary
 is fixed and pins 1.20.1. Do this as soon as the Apple Developer account is
-active, then delete the three workarounds and this document.
+active, then delete the four workarounds and this document.
 
 ## Diagnosing the next one
 
@@ -179,5 +198,7 @@ active, then delete the three workarounds and this document.
    polylines and 56 markers. The bound says how far the mount got, which says
    which rule broke.
 4. Resist diagnosing into the code first. Two earlier rounds on this blamed
-   memory pressure and then the `zIndex` KVO path; both were wrong, and the
-   crash report settled it each time in one read.
+   memory pressure and then the continuously changing `zIndex` KVO path; both
+   were wrong for those earlier failures, and the crash report settled each in
+   one read. A selection-time `zIndex` reorder did later prove to be a fourth
+   failure mode.

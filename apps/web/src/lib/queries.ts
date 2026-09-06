@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { currentNightDate } from "@/lib/night-date";
 
 /**
  * Data access. Server components call these directly; route handlers wrap them.
@@ -18,10 +19,13 @@ const eventSummaryInclude = {
   ticketTypes: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
 } as const;
 
-/** The next published city-wide night. */
-export async function getUpcomingNight() {
+/** The next published city-wide night that has not passed in Los Angeles. */
+export async function getUpcomingNight(now: Date = new Date()) {
   return prisma.night.findFirst({
-    where: { isPublished: true },
+    where: {
+      isPublished: true,
+      date: { gte: currentNightDate(now) },
+    },
     orderBy: { date: "asc" },
     include: {
       events: {
