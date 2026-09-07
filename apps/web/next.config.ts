@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
   // @dtlahappening/core ships TypeScript source rather than a build step, so
@@ -25,4 +26,15 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  telemetry: false,
+  sourcemaps: {
+    // Local and preview builds remain ordinary builds until the upload token
+    // is deliberately configured in their environment.
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+});

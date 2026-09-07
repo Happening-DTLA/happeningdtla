@@ -86,8 +86,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16">{children}</main>
-        <footer className="border-t border-border px-4 py-8 text-center text-xs text-text-muted">
-          Downtown Los Angeles
+        <footer className="border-t border-border px-4 py-8 text-xs text-text-muted">
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2">
+            <span>Downtown Los Angeles</span>
+            <Link href="/privacy" className="hover:text-accent">Privacy</Link>
+            <Link href="/terms" className="hover:text-accent">Terms</Link>
+            <Link href="/support" className="hover:text-accent">Support</Link>
+          </div>
         </footer>
       </body>
     </html>

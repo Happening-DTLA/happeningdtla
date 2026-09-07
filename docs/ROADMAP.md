@@ -42,6 +42,9 @@ directory, map, passport and distribution pipeline.
       nearest-first distances, map recentering and passport persistence.
 - [ ] Exercise the artist submission form end to end: image picker, signed
       upload, submission and organizer email.
+      The form and iOS 18 picker are verified through image selection; the app
+      then reaches the production signer and shows its intentional 503. Finish
+      the upload and submission after the two configuration items below.
 - [ ] Set `SUPABASE_SERVICE_ROLE_KEY`; uploads are otherwise deliberately 503.
 - [ ] Finish Resend DNS and set `EMAIL_FROM`; submissions otherwise notify only
       the Resend account owner.
@@ -50,11 +53,13 @@ directory, map, passport and distribution pipeline.
 
 - [ ] Produce a TestFlight internal build and install it from a clean device,
       not from Xcode or Expo Go.
-- [ ] Add privacy policy and terms pages, then use those exact URLs in App Store
+- [x] Add privacy policy and terms pages, then use those exact URLs in App Store
       Connect.
-- [ ] Add crash/error reporting for the mobile app and API. Alert on failed
-      submissions and repeated API 5xx responses.
-- [ ] Prepare App Store name, description, category, privacy answers,
+- [x] Add crash/error reporting for the mobile app and API. Failed submissions
+      and handled API 5xx responses now emit scrubbed Sentry events.
+- [ ] Create the Sentry projects, add Vercel/EAS credentials, and configure the
+      failed-submission and repeated-5xx alerts in `docs/error-reporting.md`.
+- [x] Prepare App Store name, description, category, privacy answers,
       permission copy, support URL and screenshots.
 - [ ] Re-sync the organizers' map and review the diff; October participants may
       still change during the month.
@@ -63,7 +68,10 @@ directory, map, passport and distribution pipeline.
 
 - [ ] Run the attendee path from install through several passport stamps with
       airplane mode toggled during the route.
-- [ ] Verify a queued passport sync remains idempotent after reconnection.
+- [x] Verify a queued passport sync remains idempotent after reconnection.
+      The durable queue test covers restart, concurrent enqueue, a lost 200
+      response followed by replay, and enqueue-during-drain; simulator replay
+      against the API returned 200 for the same logical stamp each time.
 - [ ] Test cold launch and the map on the oldest supported iPhone available.
 - [ ] Give Dino and Michael the TestFlight build and collect only launch-blocking
       feedback.
@@ -75,6 +83,8 @@ directory, map, passport and distribution pipeline.
       corridor assignments.
 - [ ] Production API smoke test from cellular, not the development network.
 - [ ] Confirm the installed TestFlight build points at the production API.
+- [ ] Capture the six final App Store screenshots from that validated build,
+      following `docs/app-store-submission.md`.
 - [ ] Fix only launch blockers. No new modules or visual direction changes.
 
 ## Monthly operating procedure

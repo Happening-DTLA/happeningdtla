@@ -3,13 +3,16 @@
 // By default Metro only watches the app folder, so edits to packages/core
 // would not trigger a reload and its imports would fail to resolve. These two
 // settings are what make a shared workspace package work on the phone.
-const { getDefaultConfig } = require("expo/metro-config");
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 const path = require("path");
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, "../..");
 
-const config = getDefaultConfig(projectRoot);
+const config = getSentryExpoConfig(projectRoot, {
+  annotateReactComponents: false,
+  includeWebReplay: false,
+});
 
 // Watch the whole monorepo so packages/core changes hot-reload.
 config.watchFolders = [workspaceRoot];
@@ -97,4 +100,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 // React from the workspace root (19.1.0) and the web app keeps its own nested
 // copy (19.2.x), so only one React is reachable from here.
 
+// Sentry's Expo config constructor above injects debug IDs before Expo's
+// serializer runs. Replay stays out of the bundle by design; the app never
+// needs to record a visitor's screen to diagnose a crash.
 module.exports = config;

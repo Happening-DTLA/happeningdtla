@@ -117,6 +117,12 @@ Import the GitHub repo. It is a monorepo, so:
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk |
 | `CLERK_SECRET_KEY` | Clerk |
 | `RESEND_API_KEY` | Optional; without it, emails log instead of sending |
+| `EMAIL_FROM` | Verified Resend sender, e.g. `DTLA Art Night <hello@send.dtlaartnight.com>` |
+| `SUBMISSIONS_EMAIL` | Monitored organizer inbox for artist submissions |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only key used to sign artist image uploads |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Web Sentry project DSN |
+| `SENTRY_ORG` / `SENTRY_PROJECT` | Sentry slugs used for source-map releases |
+| `SENTRY_AUTH_TOKEN` | Sensitive source-map upload token |
 | `ALLOWED_ORIGINS` | Only if a browser on another origin calls the API |
 
 **`DATABASE_POOL_MAX=1` is not a typo.** Every serverless instance opens its
@@ -126,6 +132,9 @@ instance, in front of a pooler, is the correct shape.
 
 Do **not** set `ADMIN_API_SECRET`. It is a development escape hatch and the
 code refuses it in production anyway.
+
+Error-reporting ownership, mobile EAS variables and alert setup are documented
+in `docs/error-reporting.md`.
 
 ## 5. Stripe webhook
 

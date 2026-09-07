@@ -1,8 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { AppState } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
 import * as Crypto from "expo-crypto";
 import type { Stamp } from "@dtlahappening/core";
 import { API_BASE_URL } from "@/api";
+import { createPassportSyncQueue } from "@/passport-sync-queue";
 
 /**
  * Stamps collected on the night.
@@ -56,10 +59,28 @@ async function deviceId(): Promise<string> {
   return fresh;
 }
 
+const reports = createPassportSyncQueue({
+  storage: AsyncStorage,
+  send: async (stamp) => {
+    const device = await deviceId();
+    const res = await fetch(`${API_BASE_URL}/api/checkins`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        deviceId: device,
+        venueId: stamp.venueId,
+        nightId: stamp.nightId,
+        at: stamp.at,
+        verified: stamp.verified,
+      }),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+  },
+});
+
 export function PassportProvider({ children }: { children: React.ReactNode }) {
   const [stamps, setStamps] = useState<Stamp[]>([]);
   const [ready, setReady] = useState(false);
-  const pending = useRef<Stamp[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -75,6 +96,29 @@ export function PassportProvider({ children }: { children: React.ReactNode }) {
     return () => { active = false; };
   }, []);
 
+  const drainReports = useCallback(() => {
+    void reports.drain().catch(() => {
+      // Storage and network failures are expected here. The durable queue is
+      // left intact and another lifecycle or connectivity event will retry it.
+    });
+  }, []);
+
+  useEffect(() => {
+    drainReports();
+
+    const network = NetInfo.addEventListener((state) => {
+      if (state.isConnected && state.isInternetReachable !== false) drainReports();
+    });
+    const appState = AppState.addEventListener("change", (state) => {
+      if (state === "active") drainReports();
+    });
+
+    return () => {
+      network();
+      appState.remove();
+    };
+  }, [drainReports]);
+
   const persist = useCallback(async (next: Stamp[]) => {
     setStamps(next);
     try {
@@ -83,29 +127,6 @@ export function PassportProvider({ children }: { children: React.ReactNode }) {
       // Written to state regardless: the stamp is real for this session even
       // if the disk write failed, and the alternative is telling someone their
       // check-in did not happen when they are standing in the room.
-    }
-  }, []);
-
-  /** Fire-and-forget. Failure is expected and silent — see the note above. */
-  const report = useCallback(async (stamp: Stamp) => {
-    try {
-      const device = await deviceId();
-      const res = await fetch(`${API_BASE_URL}/api/checkins`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          deviceId: device,
-          venueId: stamp.venueId,
-          nightId: stamp.nightId,
-          at: stamp.at,
-          verified: stamp.verified,
-        }),
-      });
-      if (!res.ok) throw new Error(String(res.status));
-    } catch {
-      // Queued for the next stamp to carry, which is when the person is
-      // moving between venues and most likely to have signal again.
-      pending.current.push(stamp);
     }
   }, []);
 
@@ -118,18 +139,16 @@ export function PassportProvider({ children }: { children: React.ReactNode }) {
       if (already) return;
 
       await persist([...stamps, full]);
-
-      // Drain whatever failed earlier alongside this one.
-      const backlog = pending.current;
-      pending.current = [];
-      void Promise.all([full, ...backlog].map(report));
+      await reports.enqueue(full);
+      drainReports();
     },
-    [stamps, persist, report],
+    [stamps, persist, drainReports],
   );
 
   const remove = useCallback(
     async (venueId: string, nightId: string) => {
       await persist(stamps.filter((s) => !(s.venueId === venueId && s.nightId === nightId)));
+      await reports.discard(venueId, nightId);
     },
     [stamps, persist],
   );

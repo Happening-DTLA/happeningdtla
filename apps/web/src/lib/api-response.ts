@@ -1,4 +1,5 @@
 import type { ApiError } from "@dtlahappening/core";
+import * as Sentry from "@sentry/nextjs";
 
 /**
  * One response shape for every endpoint, so a client can write one error
@@ -9,7 +10,13 @@ export function ok<T>(data: T, init?: ResponseInit) {
   return Response.json(data, init);
 }
 
-export function fail(status: number, code: string, message: string) {
+export function fail(status: number, code: string, message: string, report = true) {
+  if (report && status >= 500) {
+    Sentry.captureMessage(`API response: ${code}`, {
+      level: "error",
+      tags: { api_error_code: code, http_status: String(status) },
+    });
+  }
   const body: ApiError = { error: { code, message } };
   return Response.json(body, { status });
 }
@@ -36,7 +43,10 @@ export function withErrorBoundary<A extends unknown[]>(
       return await handler(...args);
     } catch (err) {
       console.error(`[${context}] unhandled error`, err);
-      return fail(503, "temporarily_unavailable", "Something went wrong. Please try again.");
+      Sentry.captureException(err, {
+        tags: { api_context: context },
+      });
+      return fail(503, "temporarily_unavailable", "Something went wrong. Please try again.", false);
     }
   };
 }

@@ -48,3 +48,45 @@ body {
 
 /* Never let a mis-tap select text on a control at a crowded door. */
 button, a { -webkit-tap-highlight-color: transparent; }
+
+.legal-copy {
+  display: grid;
+  gap: 2rem;
+}
+
+.legal-copy section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.legal-copy h2 {
+  color: var(--text);
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.legal-copy p,
+.legal-copy li {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.legal-copy ul {
+  display: grid;
+  gap: 0.625rem;
+  list-style: square;
+  padding-left: 1.25rem;
+}
+
+.legal-copy strong {
+  color: var(--text);
+}
+
+.legal-copy a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}

@@ -12,6 +12,7 @@ import {
   ART_MEDIA, CUSTOM_QUOTE_LIMITS, MAX_ARTWORKS, MAX_PORTFOLIO_IMAGES, needsCustomQuote,
 } from "@dtlahappening/core";
 import { API_BASE_URL } from "@/api";
+import { reportError } from "@/monitoring";
 import { pickImages, uploadImage } from "@/uploads";
 import { theme, space, radius, type } from "@/theme";
 
@@ -122,13 +123,16 @@ export default function ArtistSubmissionScreen() {
   }, []);
 
   const addPortfolio = useCallback(async () => {
+    let uploading = false;
     try {
       const picked = await pickImages(MAX_PORTFOLIO_IMAGES - portfolio.length);
       if (!picked.length) return;
       setPortfolioBusy(true);
+      uploading = true;
       const urls = await Promise.all(picked.map((p) => uploadImage(p, "portfolio")));
       setPortfolio((prev) => [...prev, ...urls].slice(0, MAX_PORTFOLIO_IMAGES));
     } catch (e) {
+      if (uploading) reportError(e, "artist_portfolio_upload");
       Alert.alert("Could not attach", e instanceof Error ? e.message : "Try again.");
     } finally {
       setPortfolioBusy(false);
@@ -136,13 +140,16 @@ export default function ArtistSubmissionScreen() {
   }, [portfolio.length]);
 
   const addArtworkImage = useCallback(async (key: string) => {
+    let uploading = false;
     try {
       const [picked] = await pickImages(1);
       if (!picked) return;
       patch(key, { uploading: true });
+      uploading = true;
       const url = await uploadImage(picked, "artwork");
       patch(key, { imageUrl: url, uploading: false });
     } catch (e) {
+      if (uploading) reportError(e, "artist_artwork_upload");
       patch(key, { uploading: false });
       Alert.alert("Could not attach", e instanceof Error ? e.message : "Try again.");
     }
@@ -192,6 +199,7 @@ export default function ArtistSubmissionScreen() {
         [{ text: "Done", onPress: () => router.back() }],
       );
     } catch (e) {
+      reportError(e, "artist_submission");
       Alert.alert("Could not submit", e instanceof Error ? e.message : "Try again.");
     } finally {
       setSubmitting(false);

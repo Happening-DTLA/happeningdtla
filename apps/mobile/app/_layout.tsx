@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import * as Sentry from "@sentry/react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
@@ -18,6 +19,21 @@ import { PassportProvider } from "@/passport-store";
 import { Welcome } from "@/Welcome";
 import { theme } from "@/theme";
 
+const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+
+Sentry.init({
+  dsn: sentryDsn,
+  enabled: Boolean(sentryDsn),
+  environment: __DEV__ ? "development" : "production",
+  sendDefaultPii: false,
+  tracesSampleRate: 0,
+  profilesSampleRate: 0,
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 0,
+  attachScreenshot: false,
+  attachViewHierarchy: false,
+});
+
 // Held until the faces are ready. Without this the first frame paints in the
 // system font and then reflows into Archivo, which is the kind of flicker that
 // makes an app feel assembled rather than built.
@@ -25,7 +41,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   /* already hidden, or unsupported here — not worth failing over */
 });
 
-export default function RootLayout() {
+function RootLayout() {
   // Once per launch, not per navigation — this component mounts with the app.
   const [welcomed, setWelcomed] = useState(false);
   const [fontsLoaded, fontError] = useFonts({
@@ -54,43 +70,45 @@ export default function RootLayout() {
 
   return (
     <LikesProvider>
-        <ProfileTypeProvider>
-          <LocationProvider>
-            <PassportProvider>
-      <PaymentProvider>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: theme.bg },
-            headerTintColor: theme.accent,
-            headerTitleStyle: { color: theme.text, fontSize: 16 },
-            headerShadowVisible: false,
-            contentStyle: { backgroundColor: theme.bg },
-          }}
-        >
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="e/[slug]" options={{ title: "", headerBackTitle: "Back" }} />
-          <Stack.Screen name="n/[slug]" options={{ title: "", headerBackTitle: "Back" }} />
-          {/* Presented as a sheet so the event stays visible behind it — buying
-              feels like a step, not a departure. */}
-          <Stack.Screen
-            name="buy/[slug]"
-            options={{ title: "Checkout", presentation: "modal", headerBackTitle: "Back" }}
-          />
-          <Stack.Screen name="door/pair" options={{ title: "Door access" }} />
-          {/* Full screen: a scanner competing with a nav bar wastes the only
-              thing a door person is looking at. */}
-          <Stack.Screen name="door/scan" options={{ headerShown: false }} />
-          <Stack.Screen name="saved" options={{ title: "Saved events" }} />
-          <Stack.Screen name="visitor-guide" options={{ title: "Visitor guide" }} />
-        </Stack>
-        {/* Above the navigator so the poster is the first thing drawn, and the
-            app behind it is already mounted when it clears. */}
-        {!welcomed ? <Welcome onDone={() => setWelcomed(true)} /> : null}
-      </PaymentProvider>
-    </PassportProvider>
-          </LocationProvider>
-        </ProfileTypeProvider>
-      </LikesProvider>
+      <ProfileTypeProvider>
+        <LocationProvider>
+          <PassportProvider>
+            <PaymentProvider>
+              <StatusBar style="light" />
+              <Stack
+                screenOptions={{
+                  headerStyle: { backgroundColor: theme.bg },
+                  headerTintColor: theme.accent,
+                  headerTitleStyle: { color: theme.text, fontSize: 16 },
+                  headerShadowVisible: false,
+                  contentStyle: { backgroundColor: theme.bg },
+                }}
+              >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="e/[slug]" options={{ title: "", headerBackTitle: "Back" }} />
+                <Stack.Screen name="n/[slug]" options={{ title: "", headerBackTitle: "Back" }} />
+                {/* Presented as a sheet so the event stays visible behind it — buying
+                    feels like a step, not a departure. */}
+                <Stack.Screen
+                  name="buy/[slug]"
+                  options={{ title: "Checkout", presentation: "modal", headerBackTitle: "Back" }}
+                />
+                <Stack.Screen name="door/pair" options={{ title: "Door access" }} />
+                {/* Full screen: a scanner competing with a nav bar wastes the only
+                    thing a door person is looking at. */}
+                <Stack.Screen name="door/scan" options={{ headerShown: false }} />
+                <Stack.Screen name="saved" options={{ title: "Saved events" }} />
+                <Stack.Screen name="visitor-guide" options={{ title: "Visitor guide" }} />
+              </Stack>
+              {/* Above the navigator so the poster is the first thing drawn, and the
+                  app behind it is already mounted when it clears. */}
+              {!welcomed ? <Welcome onDone={() => setWelcomed(true)} /> : null}
+            </PaymentProvider>
+          </PassportProvider>
+        </LocationProvider>
+      </ProfileTypeProvider>
+    </LikesProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);

@@ -72,9 +72,20 @@ awake only while it runs. See `docs/deploying.md`.
   app's image optimiser (their CDN ignores resize params and serves 1.6MB PNGs).
   Only **14 of 56** venues have any; Dino is supplying the rest.
 - **Passport** — stamps per venue, corridor completion, offline-first on the
-  device with best-effort anonymous sync. Endpoint verified idempotent.
+  device with a durable AsyncStorage sync queue. It retries on launch,
+  foreground and reconnection; restart, concurrent enqueue and lost-response
+  replay are covered by an automated test, and API replay was verified in the
+  simulator.
 - **Artist submissions** — modelled field-for-field on the organisers' own form,
-  with the artwork list as real columns rather than filename conventions.
+  with the artwork list as real columns rather than filename conventions. The
+  iOS 18 form, permission prompt, photo picker and image selection are verified;
+  the expected storage 503 is the current stopping point.
+- **App Store groundwork** — public privacy, terms and support routes; product
+  copy, privacy-answer draft and six-frame screenshot plan in
+  `docs/app-store-submission.md`.
+- **Error reporting code** — Sentry is integrated into native mobile, web and
+  API errors with PII-heavy features disabled. It activates after the manual
+  project/credential setup in `docs/error-reporting.md`.
 - **Venue sync** — name the target night explicitly:
   `npm run sync:artnight -- --date=2026-10-01` (add `--apply` to write).
 
@@ -88,10 +99,14 @@ awake only while it runs. See `docs/deploying.md`.
   notifications are therefore not reaching anyone.** Waiting on a DNS record
   from Dino — see `docs/email-setup-ask-dino.md`.
 
-### Built but never exercised on a device
+### Exercised but configuration-blocked
 
-- The **artist submission form** — typechecks and bundles, but the image picker,
-  upload and submit path have never run, because uploads are blocked above.
+- The **artist submission form** now runs through image selection on an iOS 18
+  simulator. The production signing endpoint then returns the documented 503.
+  A separate iOS 26.3 simulator run exposed a PhotosPicker loading hang in that
+  runtime; the same app path works on iOS 18.5, so this is not being treated as
+  a form regression. Upload, database creation and organizer email still need
+  the Supabase service-role key and Resend DNS before end-to-end completion.
 
 ### Deliberately not built
 
@@ -139,15 +154,15 @@ opened its venue sheet, and neighbouring labelled markers remained visible.
 
 Roughly in order of value:
 
+- **Finish release-service configuration** — create the Sentry projects and
+  alerts from `docs/error-reporting.md`, set the Supabase service-role key, and
+  finish Resend DNS. Never put those values in chat or Git.
 - **End-of-night passport summary** worth screenshotting, and a venue footfall
   readout for Dino — the argument for why a venue wants to be listed.
 - **Venue submission module**, mirroring the artist one.
 - **Onboarding**, which gives profile type a real home.
-- **Privacy policy and terms** — an App Store requirement, and cheap to write
-  accurately because the data collection is small and deliberate: email, phone
-  and address only for submissions; location never leaves the device except as
-  a "was near / was not near" boolean; check-ins identify a random per-install
-  id and no person.
+- **Final App Store screenshots** — layouts and captions are ready; capture them
+  only from the physical-device-validated build.
 - `docs/launch-readiness.md` holds the older audit. Items 8, 9, 10, 12 and 13
   are still open. The Stripe production webhook matters before anything is ever
   sold and is easy to forget, because payments would succeed and issue no

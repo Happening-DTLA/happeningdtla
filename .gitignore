@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Historical typo containing local secrets. Keep it out of Git until its
+# values have been moved into apps/web/.env.local and the file is removed.
+apps/web/env
 
 # vercel
 .vercel

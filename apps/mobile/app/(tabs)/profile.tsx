@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, space } from "@/theme";
@@ -157,6 +157,22 @@ export default function ProfileScreen() {
           onPress={() => router.push("/visitor-guide")}
         />
         <Row icon="business-outline" label="For organizers" hint="Manage your venue's events" />
+        <Row
+          icon="help-circle-outline"
+          label="Support"
+          hint="Help, corrections and privacy requests"
+          onPress={() => Linking.openURL(`${API_BASE_URL}/support`)}
+        />
+        <Row
+          icon="shield-checkmark-outline"
+          label="Privacy policy"
+          onPress={() => Linking.openURL(`${API_BASE_URL}/privacy`)}
+        />
+        <Row
+          icon="document-text-outline"
+          label="Terms of use"
+          onPress={() => Linking.openURL(`${API_BASE_URL}/terms`)}
+        />
         {/* Staff-only. Reaching this screen grants nothing on its own — the
             device still has to be paired with a code from an organizer. */}
         {/* Meaningless at a free event with no doors to scan. */}
