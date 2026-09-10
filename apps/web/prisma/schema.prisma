@@ -101,10 +101,11 @@ model Organizer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members OrganizerMember[]
-  invites OrganizerInvite[]
-  venues  Venue[]
-  events  Event[]
+  members       OrganizerMember[]
+  vendorMarkets VendorMarket[]
+  invites       OrganizerInvite[]
+  venues        Venue[]
+  events        Event[]
 }
 
 enum OrganizerRole {
@@ -856,7 +857,16 @@ enum VendorCategory {
 /// ticket type. Most Art Night markets hang off a `Night`; the Regent holiday
 /// flea market does not, so `nightId` is optional.
 model VendorMarket {
-  id      String  @id @default(cuid())
+  id String @id @default(cuid())
+
+  /// Who is paid for a booth here, and who is the merchant of record for it.
+  ///
+  /// Required, exactly like Event.organizerId, because a market whose booth
+  /// fee has no destination cannot be sold. These fees are Happening in
+  /// DTLA's revenue rather than a venue's, so this points at their Organizer
+  /// row — the same Connect mechanism ticketing uses, pointed somewhere else.
+  organizerId String
+
   nightId String?
 
   name      String // "Spring Street Arcade Vendor Market"
@@ -902,11 +912,13 @@ model VendorMarket {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  organizer   Organizer                @relation(fields: [organizerId], references: [id], onDelete: Restrict)
   night       Night?                   @relation(fields: [nightId], references: [id], onDelete: SetNull)
   submissions VendorSubmissionMarket[]
 
   @@index([date])
   @@index([nightId])
+  @@index([organizerId])
 }
 
 enum VendorSubmissionStatus {

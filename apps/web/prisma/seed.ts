@@ -473,6 +473,7 @@ async function main() {
   const vendorMarkets = await Promise.all([
     prisma.vendorMarket.create({
       data: {
+        organizerId: artNightOrg.id,
         nightId: artNight.id,
         name: "Spring Street Arcade Vendor Market",
         venueName: "Spring Arcade Building",
@@ -491,6 +492,7 @@ async function main() {
     }),
     prisma.vendorMarket.create({
       data: {
+        organizerId: artNightOrg.id,
         name: "Spring Street Arcade Vendor Market",
         venueName: "Spring Arcade Building",
         address: "540 S. Spring St, Los Angeles, CA 90013",
@@ -506,6 +508,7 @@ async function main() {
     }),
     prisma.vendorMarket.create({
       data: {
+        organizerId: artNightOrg.id,
         name: "The Great Rock N Roll Holiday Flea Market",
         venueName: "The Regent Theater",
         address: "448 Main St, Los Angeles, CA",
