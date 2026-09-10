@@ -67,6 +67,12 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   fresh clone `npm run typecheck` therefore fails with `TS2304: Cannot find name
   'PageProps'` in files that are completely correct. Run `next dev` or
   `next build` once and it goes away. Do not "fix" it by hand-writing the types.
+- **New route files fail typecheck until the dev server has seen them.** Expo
+  Router generates typed routes into `apps/mobile/.expo/types/router.d.ts`, so
+  a freshly added screen makes `router.push("/submit/vendor")` an error —
+  "not assignable to parameter of type ..." — while the file plainly exists.
+  Start Metro and the types regenerate within seconds. It is the same class of
+  problem as `PageProps` on the web side: correct code, absent generated types.
 - **A local iOS build fails on Sentry unless a flag is set.** The bundle phase
   runs `sentry-cli`, the Sentry projects in `docs/error-reporting.md` were never
   created, and the upload dies with `An organization ID or slug is required` —

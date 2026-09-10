@@ -11,5 +11,6 @@ export * from "./datetime";
 export * from "./ticket-code";
 export * from "./submissions";
 export * from "./vendors";
+export * from "./participation";
 export * from "./geo";
 export * from "./passport";

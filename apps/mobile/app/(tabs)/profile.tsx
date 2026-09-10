@@ -135,20 +135,18 @@ export default function ProfileScreen() {
       </View>
 
       <View style={{ gap: space.md }}>
-        {profileType === "ARTIST" ? (
-          <Row
-            icon="color-palette-outline"
-            label="Submit your work"
-            hint="Apply to exhibit in the gallery network"
-            onPress={() => router.push("/submit/artist")}
-          />
-        ) : null}
+        {/* One door to all four forms rather than a row per profile type. Two
+            of them are open to anyone — you do not have to call yourself a
+            performer to offer to play — and gating those behind a profile
+            switch would hide them from the people most likely to use them. */}
+        <Row
+          icon="sparkles-outline"
+          label="Get involved"
+          hint="Submit art, sell at a market, perform or volunteer"
+          onPress={() => router.push("/submit")}
+        />
         {profileType === "VENUE" ? (
-          <Row
-            icon="storefront-outline"
-            label="Host a space"
-            hint="Coming soon"
-          />
+          <Row icon="business-outline" label="Host a space" hint="Coming soon" />
         ) : null}
         {/* Top of the list on the night, because it is the only row here that
             changes while you are out. */}

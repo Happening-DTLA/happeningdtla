@@ -57,16 +57,18 @@ model User {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  orders            Order[]
-  tickets           Ticket[]           @relation("TicketOwner")
-  memberships       OrganizerMember[]
-  scansPerformed    Scan[]             @relation("ScannedBy")
-  following         Follow[]           @relation("Follower")
-  followers         Follow[]           @relation("Following")
-  interests         EventInterest[]
-  checkIns          VenueCheckIn[]
-  submissions       ArtistSubmission[]
-  vendorSubmissions VendorSubmission[]
+  orders                   Order[]
+  tickets                  Ticket[]                  @relation("TicketOwner")
+  memberships              OrganizerMember[]
+  scansPerformed           Scan[]                    @relation("ScannedBy")
+  following                Follow[]                  @relation("Follower")
+  followers                Follow[]                  @relation("Following")
+  interests                EventInterest[]
+  checkIns                 VenueCheckIn[]
+  submissions              ArtistSubmission[]
+  vendorSubmissions        VendorSubmission[]
+  entertainmentSubmissions EntertainmentSubmission[]
+  volunteerSubmissions     VolunteerSubmission[]
 
   @@index([email])
 }
@@ -1000,4 +1002,119 @@ model VendorSubmissionMarket {
 
   @@unique([submissionId, marketId])
   @@index([marketId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Entertainment and volunteers
+// ---------------------------------------------------------------------------
+
+/// Their three options, verbatim: "Fee Required", "Volunteer", "Other".
+enum EntertainerFeePreference {
+  FEE_REQUIRED
+  VOLUNTEER
+  OTHER
+}
+
+/// A performer applying to play Art Night.
+///
+/// Modelled on dtlaartnight.com/entertainers-submission. Note the fee question
+/// is on the FORM, not in a follow-up: the organisers need to know whether an
+/// act costs money before they shortlist it, and asking later wastes both
+/// sides' time.
+model EntertainmentSubmission {
+  id     String  @id @default(cuid())
+  userId String?
+
+  firstName String
+  lastName  String
+  email     String
+  phone     String
+
+  /// "Band or Artist Name" on their form.
+  actName String
+
+  /// "What type of music do you perform?" — the only optional field on their
+  /// form, and left optional here. A live painter is not a music act.
+  performanceType String?
+
+  /// "Instagram, you tube or other". Required, free text, because it is
+  /// routinely a handle rather than a URL.
+  links String
+
+  /// "Please submit a promotional photo for future use." Required on their
+  /// form; the organisers use it in event marketing.
+  promoImageUrl String
+
+  feePreference EntertainerFeePreference
+
+  /// What "Other" meant. Meaningless for the other two options.
+  feeNote String?
+
+  status SubmissionStatus @default(SUBMITTED)
+
+  consentAt    DateTime
+  reviewedAt   DateTime?
+  reviewerNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+/// Their five roles, as checkboxes — a volunteer may pick several.
+enum VolunteerRole {
+  INFORMATION_BOOTH
+  DOOR_ATTENDANT
+  BLOCK_ENTERTAINMENT
+  GALLERY_ASSISTANT
+  RUNNER
+}
+
+/// Someone offering to help run the night.
+///
+/// Modelled on dtlaartnight.com/volunteer-submission with ONE DELIBERATE
+/// DIFFERENCE. Their form requires uploading a California/US ID to check age.
+/// This does not, and must not until there is somewhere private to put one:
+/// the `submissions` bucket is public, so an identity document uploaded there
+/// would sit on a URL anyone could read. `isAdult` records the same fact the
+/// ID was being used to establish, and the organisers can check ID in person
+/// on the night, which is when it actually matters.
+model VolunteerSubmission {
+  id     String  @id @default(cuid())
+  userId String?
+
+  firstName String
+  lastName  String
+  email     String
+  phone     String
+
+  /// "Best time to reach you" — free text on their form, and left free text
+  /// because "after 4pm on weekdays" is a real answer no dropdown contains.
+  bestTimeToReach String
+
+  roles VolunteerRole[] @default([])
+
+  /// Their rule: volunteers must be 18 or over. An attestation with a
+  /// timestamp, which is what the ID upload was for.
+  isAdult Boolean
+
+  status SubmissionStatus @default(SUBMITTED)
+
+  consentAt    DateTime
+  reviewedAt   DateTime?
+  reviewerNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([status, createdAt])
+  @@index([userId])
 }
