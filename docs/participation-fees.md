@@ -114,18 +114,38 @@ ambiguous whose money it is.
   `Event.organizerId`, because a market whose booth fee has no destination
   cannot be sold.
 
+## What is built
+
+- `ParticipationFee` — one row per thing owed, with unique constraints on the
+  artist submission and the vendor booth it belongs to, so a thing can never
+  accumulate two fees and be charged twice.
+- `chargeParticipationFee()` — a direct charge on the organisers' account,
+  reusing an existing PaymentIntent rather than minting a second. **No
+  platform-charge fallback**: an un-onboarded account fails loudly instead of
+  quietly making us merchant of record.
+- Webhook handling for `payment_intent.succeeded` / `.payment_failed`, sharing
+  the existing `WebhookEvent` idempotency. Settlement is conditional on the fee
+  still being unpaid, so a redelivery confirms nothing twice.
+- `expireUnpaidFees()` and `POST /api/fees/sweep` — the 72-hour release,
+  guarded by `ADMIN_API_SECRET` and safe to run repeatedly.
+- Approval and billing happen in **one transaction**. Split apart they can
+  half-happen: an approved application with no bill is a vendor told yes and
+  never asked for money; a bill against an application still marked SUBMITTED
+  is a charge nobody authorised.
+- `npm run test:fees` pins the published price; `npm run test:fee-lifecycle`
+  covers double-billing, webhook redelivery, the sweep, and the case where a
+  declined card must NOT cost a vendor their booth.
+
 ## What is still missing
 
-1. **An `Organizer` row for Happening in DTLA**, onboarded through Connect.
-   Nothing can be charged until `chargesEnabled` is true for it.
-2. **A payment path for fees.** `Order.eventId` is required and every
-   `OrderItem` points at a `TicketType`, so an order cannot represent a booth
-   or a submission. Fees need their own record — a smaller, simpler one, since
-   a fee has no inventory to hold, no ticket to issue and no door to scan.
-3. **The 72-hour expiry sweep.** An approval that goes unpaid has to release
-   its space, which is the vendor equivalent of `releaseExpiredHolds()`.
-4. **Where the artist fee attaches.** A vendor booth has a market to hang a
-   price on. An artist submission has nothing equivalent yet.
+1. **An `Organizer` row for Happening in DTLA, onboarded through Connect.**
+   Nothing can be charged until `chargesEnabled` is true for it, and that step
+   is Dino and Michael's — Stripe needs their business details, bank account
+   and identity verification. Start it early; verification can take days.
+2. **A `/pay/[id]` screen.** The API is ready and the email links to it.
+3. **Scheduling the sweep.** The endpoint exists; something has to call it.
+4. **Charging the artist fee at submission**, which is where their form puts
+   it — `createSubmissionFee()` exists but nothing calls it yet.
 
 ## Questions only Logan and the partners can answer
 

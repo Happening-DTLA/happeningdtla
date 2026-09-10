@@ -101,11 +101,12 @@ model Organizer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members       OrganizerMember[]
-  vendorMarkets VendorMarket[]
-  invites       OrganizerInvite[]
-  venues        Venue[]
-  events        Event[]
+  members           OrganizerMember[]
+  vendorMarkets     VendorMarket[]
+  participationFees ParticipationFee[]
+  invites           OrganizerInvite[]
+  venues            Venue[]
+  events            Event[]
 }
 
 enum OrganizerRole {
@@ -786,6 +787,7 @@ model ArtistSubmission {
 
   user     User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   artworks SubmissionArtwork[]
+  fee      ParticipationFee?
 
   @@index([email])
   @@index([status, createdAt])
@@ -1009,8 +1011,9 @@ model VendorSubmissionMarket {
 
   status VendorSubmissionStatus @default(SUBMITTED)
 
-  submission VendorSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  market     VendorMarket     @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  submission VendorSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  market     VendorMarket      @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  fee        ParticipationFee?
 
   @@unique([submissionId, marketId])
   @@index([marketId, status])
@@ -1129,4 +1132,96 @@ model VolunteerSubmission {
   @@index([email])
   @@index([status, createdAt])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Participation fees
+// ---------------------------------------------------------------------------
+
+enum ParticipationFeeKind {
+  ARTIST_SUBMISSION
+  VENDOR_BOOTH
+}
+
+enum ParticipationFeeStatus {
+  PENDING
+  PAID
+  FAILED
+  /// A booth approval whose 72-hour window passed unpaid. The space went back.
+  EXPIRED
+  REFUNDED
+}
+
+/// One thing somebody owes for taking part.
+///
+/// Separate from `Order` because an order cannot express this: `Order.eventId`
+/// is required and every `OrderItem` points at a `TicketType`, and a booth fee
+/// belongs to a market while a submission fee belongs to an application.
+/// Forcing it through orders would mean inventing a fake event, which is the
+/// kind of shortcut that later reads as a real event to a query nobody
+/// remembered to filter.
+///
+/// It is also a genuinely smaller thing than an order: no inventory to hold,
+/// no ticket to issue, no door to scan. What it does share are the invariants
+/// that matter — integer cents, one charge per thing owed, and a webhook that
+/// can be delivered twice without charging twice.
+model ParticipationFee {
+  id   String               @id @default(cuid())
+  kind ParticipationFeeKind
+
+  /// Who receives the money. The charge is created ON this account, so they
+  /// are the merchant of record for it. See docs/participation-fees.md.
+  organizerId String
+
+  /// Exactly one of these is set — enforced by the API rather than by the
+  /// database, because Postgres cannot express "exactly one of" without a
+  /// check constraint Prisma does not model. Both are unique, so a thing can
+  /// never accumulate two fees and be charged twice for the same place.
+  artistSubmissionId       String? @unique
+  vendorSubmissionMarketId String? @unique
+
+  /// The fee as the organisers advertise it — $35, $50.
+  advertisedCents  Int
+  /// What Stripe will deduct. The applicant covers it; see participation-fees.ts.
+  processingCents  Int
+  /// The platform's cut. Zero today, 5% when switched on.
+  platformFeeCents Int @default(0)
+  /// What the applicant is actually charged. The only number to show them.
+  totalCents       Int
+
+  status ParticipationFeeStatus @default(PENDING)
+
+  /// Who is paying, denormalised because an applicant may have no account —
+  /// the same guest-first path every other entry point here allows.
+  payerEmail String
+  payerName  String?
+
+  /// When payment is due, for booths. Null for artist fees, which are paid at
+  /// submission rather than on approval, so there is no window to miss.
+  payBy DateTime?
+
+  /// Bearer secret, handed to the payer in the email that asks them to pay.
+  /// A cuid is unguessable enough to be a primary key and NOT enough to be a
+  /// credential, so paying requires this as well as the id.
+  accessToken String @unique @default(cuid())
+
+  stripePaymentIntentId String? @unique
+  stripeChargeId        String?
+
+  /// The connected account the charge lives on. Recorded because a direct
+  /// charge cannot be retrieved or refunded without knowing which account it
+  /// was made on — and by then the organizer row may have changed.
+  stripeAccountId String?
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  organizer              Organizer               @relation(fields: [organizerId], references: [id], onDelete: Restrict)
+  artistSubmission       ArtistSubmission?       @relation(fields: [artistSubmissionId], references: [id], onDelete: Cascade)
+  vendorSubmissionMarket VendorSubmissionMarket? @relation(fields: [vendorSubmissionMarketId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
+  @@index([status, payBy])
+  @@index([payerEmail])
 }

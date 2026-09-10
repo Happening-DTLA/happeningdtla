@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 import { fulfillOrder, releaseOrder, sendOrderConfirmation } from "@/lib/orders";
+import { settleParticipationFee } from "@/lib/participation-fees";
 import { syncAccountStatus } from "@/lib/connect";
 
 /**
@@ -58,6 +59,26 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "payment_intent.succeeded": {
         const intent = event.data.object as Stripe.PaymentIntent;
+
+        // A participation fee, not a ticket order. Direct charges on the
+        // organisers' own account arrive here the same way, distinguished only
+        // by what we put in metadata — which is the one thing about a payment
+        // this handler trusts.
+        const feeId = intent.metadata?.participationFeeId;
+        if (feeId) {
+          const settled = await settleParticipationFee({
+            feeId,
+            stripeChargeId:
+              typeof intent.latest_charge === "string" ? intent.latest_charge : undefined,
+          });
+          console.log(
+            settled
+              ? `[webhook] participation fee ${feeId} settled`
+              : `[webhook] participation fee ${feeId} was already settled`,
+          );
+          break;
+        }
+
         const orderId = intent.metadata?.orderId;
         if (!orderId) {
           console.warn(`[webhook] ${intent.id} has no orderId in metadata`);
@@ -83,6 +104,21 @@ export async function POST(request: Request) {
       case "payment_intent.payment_failed":
       case "payment_intent.canceled": {
         const intent = event.data.object as Stripe.PaymentIntent;
+
+        // A failed fee is NOT released. Unlike a ticket hold, the space stays
+        // reserved until the 72-hour window actually closes — a declined card
+        // at hour two should not cost a vendor the booth they were approved
+        // for. expireUnpaidFees() is what releases it, on time.
+        const feeId = intent.metadata?.participationFeeId;
+        if (feeId) {
+          await prisma.participationFee.updateMany({
+            where: { id: feeId, status: "PENDING" },
+            data: { status: "FAILED" },
+          });
+          console.log(`[webhook] participation fee ${feeId} marked failed — space still held`);
+          break;
+        }
+
         const orderId = intent.metadata?.orderId;
         if (orderId) {
           // Nobody paid, so the seats go back on sale immediately rather than
