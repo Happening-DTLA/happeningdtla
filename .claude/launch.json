@@ -6,10 +6,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run",
-        "dev",
-        "--",
-        "--port",
-        "3100"
+        "dev"
       ],
       "port": 3100
     },
@@ -27,6 +24,18 @@
         "8082"
       ],
       "port": 8082
+    },
+    {
+      "name": "metro",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start",
+        "--workspace",
+        "apps/mobile"
+      ],
+      "port": 8081,
+      "url": "http://localhost:8081"
     }
   ]
 }
