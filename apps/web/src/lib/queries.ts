@@ -150,3 +150,70 @@ export async function getUpcomingEvents(take = 50) {
     take,
   });
 }
+
+/**
+ * Artist submissions, newest first — the platform-admin review queue.
+ *
+ * Fields are listed rather than spread for the usual reason, which bites
+ * harder here than anywhere else in this file: these rows hold a person's home
+ * address. Anything added to the model later has to be named here before it
+ * can leave the database, and `userId` is deliberately not among them — who an
+ * artist is in our user table is not part of reviewing their work.
+ *
+ * Artworks come back in submission order because the artist chose it, and a
+ * reviewer reading a proposal should see the pieces the way they were offered.
+ */
+export async function listArtistSubmissions(params: { status?: string; take?: number } = {}) {
+  const { status, take = 100 } = params;
+
+  return prisma.artistSubmission.findMany({
+    where: status ? { status: status as never } : {},
+    orderBy: { createdAt: "desc" },
+    take,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      address1: true,
+      address2: true,
+      city: true,
+      state: true,
+      zip: true,
+      socials: true,
+      website: true,
+      media: true,
+      portfolioImages: true,
+      status: true,
+      consentAt: true,
+      reviewedAt: true,
+      reviewerNote: true,
+      resubmitBy: true,
+      createdAt: true,
+      artworks: {
+        orderBy: { position: "asc" },
+        select: {
+          id: true,
+          title: true,
+          medium: true,
+          heightIn: true,
+          widthIn: true,
+          depthIn: true,
+          weightLb: true,
+          priceCents: true,
+          imageUrl: true,
+        },
+      },
+    },
+  });
+}
+
+/** How many submissions sit in each status — the queue counts. */
+export async function countSubmissionsByStatus() {
+  const rows = await prisma.artistSubmission.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+  });
+  return Object.fromEntries(rows.map((r) => [r.status, r._count._all])) as Record<string, number>;
+}

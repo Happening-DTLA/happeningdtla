@@ -21,6 +21,15 @@ const nextConfig: NextConfig = {
       // The map host redirects here; allowed so a stored absolute URL works
       // whichever form it was captured in.
       { protocol: "https", hostname: "i.proxi.co", pathname: "/**" },
+      // Artist submissions. An artist photographs a canvas on a modern phone,
+      // so these arrive as multi-megabyte JPEGs and a review page shows twenty
+      // at once. Scoped to the public object path: signed upload URLs and the
+      // rest of the storage API are not images and have no business here.
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
     formats: ["image/webp"],
   },
