@@ -46,9 +46,13 @@ Database: Supabase Postgres, `us-west-1`.
 Git brings everything except secrets:
 
 1. `npm install` at the root (postinstall generates the Prisma client).
-2. **`apps/web/.env`** — copy from the old machine by AirDrop, not email. It
-   holds the database URL, Supabase direct URL and CA cert, Stripe, Clerk and
-   Resend keys.
+2. **`apps/web/.env`** — there is no other machine to copy it from, and Vercel
+   cannot give it back: all 11 production variables are marked Sensitive, so
+   `vercel env pull` writes `[SENSITIVE]` placeholders. Rebuild it from
+   `.env.example` plus the Supabase, Stripe, Clerk and Resend dashboards.
+   `DATABASE_URL` and `SHADOW_DATABASE_URL` do not need copying at all —
+   `npm run db:start` writes fresh local ones. Run `vercel env pull` to a
+   scratch filename anyway: it tells you which keys production has set.
 3. Optionally `apps/mobile/.env.local` with
    `EXPO_PUBLIC_API_URL=https://happeningdtla-web-v63f.vercel.app`.
 4. `npm run typecheck` should be clean across all three workspaces.
@@ -91,13 +95,26 @@ awake only while it runs. See `docs/deploying.md`.
 
 ### Blocked on Logan, not on code
 
-- **`SUPABASE_SERVICE_ROLE_KEY` is not set.** Artist portfolio and artwork
-  uploads cannot work without it. Everything else in that pipeline is built and
-  deployed; the signing endpoint returns a clear 503 saying exactly this.
-- **`EMAIL_FROM` is blank**, so mail falls back to `onboarding@resend.dev`,
-  which only delivers to the Resend account owner. **Artist submission
-  notifications are therefore not reaching anyone.** Waiting on a DNS record
-  from Dino — see `docs/email-setup-ask-dino.md`.
+- ~~**`SUPABASE_SERVICE_ROLE_KEY` is not set.**~~ **Done.** It is set in Vercel,
+  and the whole pipeline was verified end to end on 10 September 2026 — sign,
+  PUT the bytes, read the public URL, delete — every step 200, in production and
+  locally. The `submissions` bucket exists, is public, caps at 25MB and allows
+  jpeg/png/webp/heic/heif. Two traps if you retest it: the public object URL is
+  CDN-cached so a GET keeps returning 200 for a while after a delete (confirm
+  with a service-role `object/list`), and a *missing* object returns HTTP **400**
+  whose body says `"statusCode":"404"`.
+- **Email is blocked on DNS, not on `EMAIL_FROM`.** `EMAIL_FROM` *is* set in
+  Vercel (it is one of the write-only Sensitive vars, which is why
+  `/api/health` never showed it). The real problem is that
+  `send.dtlaartnight.com` has **no MX, no SPF and no DKIM** — Resend domain
+  verification was never completed. The apex resolves and runs Google Workspace
+  mail, so DNS is live and reachable; the records were simply never added.
+  Resend rejects every send, `send()` swallows the error, and the API returns
+  200. **Artist submission notifications reach nobody.**
+  DNS is at **GoDaddy** (`ns75/ns76.domaincontrol.com`) — that answers question
+  one of the message in `docs/email-setup-ask-dino.md`, so drop it from the ask.
+  Because this is indefinite, `/admin/submissions` now reads the database
+  directly; nothing depends on mail working.
 
 ### Exercised but configuration-blocked
 

@@ -1,6 +1,6 @@
 # Roadmap — to DTLA Art Night, Thursday 1 October 2026
 
-Updated 6 September 2026. **25 days.**
+Updated 10 September 2026. **21 days.**
 
 ## The one thing that matters
 
@@ -8,11 +8,15 @@ A person can install the native app, see the current Art Night rather than last
 month's, use the map while walking Downtown, and keep a passport that survives
 bad signal and an app restart.
 
-This is now an **Art Night-first, free-night product**. Ticketing still exists
-and its concurrency invariants remain load-bearing, but it is behind
-`EXPO_PUBLIC_TICKETING` / `NEXT_PUBLIC_TICKETING` and is not the October launch
-path. Do not let the older ticketing roadmap pull work away from a reliable
-directory, map, passport and distribution pipeline.
+This is now an **Art Night-first product**. The scope Logan set on 10 September
+2026 is the Art Night app, complete: **ticketing, artist submissions and vendor
+participation submissions**, reaching parity with what dtlaartnight.com offers.
+Ticketing's concurrency invariants remain load-bearing; the flags
+(`EXPO_PUBLIC_TICKETING` / `NEXT_PUBLIC_TICKETING`) decide when it is shown, not
+whether it is maintained.
+
+Nothing in the wider scope moves before 1 October. A reliable directory, map,
+passport and distribution pipeline is still the only thing that has a date.
 
 ## 6–8 September — make the monthly product real
 
@@ -40,14 +44,18 @@ directory, map, passport and distribution pipeline.
       on at least two physical iPhones.
 - [ ] Walk a real Downtown route with weak connectivity. Verify live location,
       nearest-first distances, map recentering and passport persistence.
-- [ ] Exercise the artist submission form end to end: image picker, signed
-      upload, submission and organizer email.
-      The form and iOS 18 picker are verified through image selection; the app
-      then reaches the production signer and shows its intentional 503. Finish
-      the upload and submission after the two configuration items below.
-- [ ] Set `SUPABASE_SERVICE_ROLE_KEY`; uploads are otherwise deliberately 503.
-- [ ] Finish Resend DNS and set `EMAIL_FROM`; submissions otherwise notify only
-      the Resend account owner.
+- [ ] Exercise the artist submission form end to end on a device: image picker,
+      signed upload, submission and organizer email.
+- [x] Set `SUPABASE_SERVICE_ROLE_KEY`. Set in Vercel and verified end to end on
+      10 Sep — sign, upload, public read and delete all return 200, in
+      production and locally.
+- [ ] **Finish Resend DNS.** `EMAIL_FROM` is already set; the blocker is that
+      `send.dtlaartnight.com` has no MX, SPF or DKIM record at all. DNS is at
+      GoDaddy. Until then every submission notifies nobody — see
+      `docs/email-setup-ask-dino.md`.
+- [x] Give submissions somewhere to be seen that does not depend on email.
+      `/admin/submissions` reads the database directly, gated on `ADMIN_EMAILS`
+      because `ArtistSubmission` has no organizer to scope it by.
 
 ## 14–20 September — establish the release path
 
@@ -110,6 +118,67 @@ moved intact to an unpublished demo Night with
    artist and venue profile types a proper home.
 4. Decide whether the free Art Night product has earned a separate ticketing
    pilot with 1–3 venues.
+
+## Parity with dtlaartnight.com
+
+Surveyed 10 September 2026. The site is the reference for what the app should
+eventually do. Venue data already comes from the site's own map — `sync:artnight`
+reads `maps.dtlaartnight.com/api/topics/…/points`, the same source the site's
+"Open Map!" links to, and production has coordinates for all 56.
+
+| Website | App |
+| --- | --- |
+| Gallery map | ✅ native map, corridor routes, walking distance |
+| Visitor guide | ✅ `/visitor-guide` |
+| Participating galleries | ✅ the Art Night directory |
+| Artist submission | ⚠️ built, but **does not collect the $35 fee** |
+| Returning-artist submission | ❌ separate shorter form, not built |
+| Vendor submission | ❌ not built — see below |
+| Entertainment submission | ❌ not built |
+| Volunteer sign-up | ❌ not built |
+| Emerging-artists directory | ❌ not built |
+| About / contact | ❌ not built |
+| User login | ❌ no auth by design |
+
+**The fee gap is the important one.** The site charges **$35** for an artist
+submission plus a hanging fee, and **$50** for a vendor booth (shown all-in as
+$51.86). The app's submission flow has no payment step at all, so an artist who
+applies in the app pays nothing while one who applies on the web pays $35. That
+is both lost revenue and an unfair difference between two doors to the same
+event.
+
+### Vendor submission — captured spec
+
+From `/vendor-submission`, so it does not have to be re-read later.
+
+**Fields.** Business name, first, last, email (+confirm), phone, social media,
+website, category, describe your merchandise, how you present it, what makes
+you stand out, markets to join (multi-select of dated priced markets), up to 5
+photos (optional, JPG/PNG/WebP/GIF), email consent, SMS consent.
+
+**Categories.** Fashion & Apparel · Accessories · Beauty & Wellness · Art &
+Artisan Goods · Home & Lifestyle · Plants & Garden · Pet Products · Kids &
+Family · Digital & Creative Services · Vintage & Antiques · Cultural &
+Metaphysical · Services & Experiences · Food & Beverage · Others.
+
+**Markets** are dated and priced individually — Spring Street Arcade on the
+first Thursday, $51.86 all-in — so this is a list of purchasable occurrences,
+not a single product.
+
+**The process, which is the actual design:**
+
+1. Apply. 2–3 business days to process.
+2. If approved, **payment within 72 hours** or the space is not held.
+3. Cancelling inside 24 hours means finding a replacement or forfeiting.
+4. Space assignments go out 24 hours before, with load-in and parking.
+5. **No refunds.**
+
+Vendors stay for the whole event or may not be invited back, and bring their
+own table and display. Food vendors need licences and permits on file; Spring
+Arcade is currently not accepting food vendors at all.
+
+This confirms the shape in `docs/marketplaces.md`: a booth is **applied for and
+approved, then paid**, which is not the browse-then-buy flow ticketing has.
 
 ## Deliberately deferred
 

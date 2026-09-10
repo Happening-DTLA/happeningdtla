@@ -10,6 +10,24 @@ nothing here happens before 1 October.
 
 ---
 
+> **Corrected 10 September 2026, after reading dtlaartnight.com.** The
+> organisers already have a published fee model, and it is not a commission on
+> sales. They charge a **$35 artist submission fee** plus a hanging fee, and a
+> **$50 vendor booth fee** (shown all-in as $51.86) — while advertising, in
+> their own words, *"Sell your art and keep 100% OF YOUR SALES!"*
+>
+> That resolves most of the hard part below. The money is in **fees to
+> participate**, which are ordinary one-time payments to an organizer who
+> already has a Connect account. It needs no artist payout accounts, no
+> three-way splits and no fulfilment. The art-sales analysis further down still
+> holds if the platform ever wants a cut of a *sale* — but that is now clearly
+> the harder and less necessary path, and it would contradict the organisers'
+> own marketing.
+>
+> The immediate gap is simpler and more urgent: **the app charges nothing.**
+> There is no payment step in its submission flow, so an artist applying in the
+> app pays nothing while one applying on the web pays $35.
+
 ## The short version
 
 **Vendoring fits the system that already exists.** It is the same shape as
