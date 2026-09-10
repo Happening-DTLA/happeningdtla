@@ -138,14 +138,24 @@ ambiguous whose money it is.
 
 ## What is still missing
 
-1. **An `Organizer` row for Happening in DTLA, onboarded through Connect.**
-   Nothing can be charged until `chargesEnabled` is true for it, and that step
-   is Dino and Michael's — Stripe needs their business details, bank account
-   and identity verification. Start it early; verification can take days.
-2. **A `/pay/[id]` screen.** The API is ready and the email links to it.
-3. **Scheduling the sweep.** The endpoint exists; something has to call it.
-4. **Charging the artist fee at submission**, which is where their form puts
-   it — `createSubmissionFee()` exists but nothing calls it yet.
+**One thing, and it is not code.** Happening in DTLA needs an `Organizer` row
+with Connect onboarding completed. Nothing can be charged until
+`chargesEnabled` is true, and that step is Dino and Michael's — Stripe wants
+their business details, bank account and identity verification. Start it early;
+verification can take days.
+
+Until then the path fails honestly: `POST /api/fees/:id` returns **503
+organizer_not_ready** rather than quietly charging on the platform account.
+
+Two operational notes for deployment:
+
+- `ARTNIGHT_ORGANIZER_SLUG` (default `dtla-artnight`) picks which business
+  collects. It is a slug rather than an id so it reads as a name and survives a
+  database reset.
+- The sweep is scheduled hourly in `apps/web/vercel.json`. Note that file lives
+  in `apps/web`, **not** the repo root — the Vercel project's Root Directory is
+  `apps/web`, and a root-level `vercel.json` is silently ignored. Set
+  `CRON_SECRET` in Vercel; the endpoint accepts it or `ADMIN_API_SECRET`.
 
 ## Questions only Logan and the partners can answer
 

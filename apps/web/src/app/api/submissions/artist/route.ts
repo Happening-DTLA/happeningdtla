@@ -38,5 +38,19 @@ export async function POST(request: Request) {
   }
 
   const submission = await createArtistSubmission(parsed.data);
-  return ok({ id: submission.id, status: submission.status, artworks: submission.artworks.length });
+  return ok({
+    id: submission.id,
+    status: submission.status,
+    artworks: submission.artworks.length,
+    // Null when the fee could not be raised — the submission still stands, and
+    // the organisers can chase it. The client uses this to send the artist
+    // straight to payment when it is there.
+    fee: submission.fee
+      ? {
+          id: submission.fee.id,
+          token: submission.fee.accessToken,
+          totalCents: submission.fee.totalCents,
+        }
+      : null,
+  });
 }

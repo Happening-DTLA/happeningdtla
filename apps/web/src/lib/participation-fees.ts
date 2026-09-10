@@ -28,6 +28,33 @@ import { send } from "@/lib/email";
  *     fact.
  */
 
+/**
+ * The business that collects participation fees — Happening in DTLA.
+ *
+ * Looked up by slug rather than stored as an id, because an id in an env var
+ * is unreadable and silently wrong after a database reset, while a slug says
+ * what it means. Configurable so a test or a second city does not have to
+ * share one hardcoded row.
+ *
+ * Throws rather than falling back to "the first organizer we find". Guessing
+ * a payee is how money reaches the wrong bank account.
+ */
+export const ARTNIGHT_ORGANIZER_SLUG = process.env.ARTNIGHT_ORGANIZER_SLUG?.trim() || "dtla-artnight";
+
+export async function feeCollectingOrganizer() {
+  const organizer = await prisma.organizer.findUnique({
+    where: { slug: ARTNIGHT_ORGANIZER_SLUG },
+    select: { id: true, name: true, stripeAccountId: true, chargesEnabled: true },
+  });
+  if (!organizer) {
+    throw new FeeError(
+      "no_fee_organizer",
+      `No organizer with slug "${ARTNIGHT_ORGANIZER_SLUG}". Set ARTNIGHT_ORGANIZER_SLUG or create that business.`,
+    );
+  }
+  return organizer;
+}
+
 export class FeeError extends Error {
   constructor(
     readonly code: string,

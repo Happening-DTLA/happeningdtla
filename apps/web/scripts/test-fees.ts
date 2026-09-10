@@ -63,6 +63,18 @@ for (const advertised of [500, 1000, 2500, 3500, 5000, 7500, 10000, 12345, 99999
   );
 }
 
+console.log("\na payer's breakdown must add up");
+for (const advertised of [3500, 5000, 1000]) {
+  const f = participationFee(advertised);
+  // What a payment page shows on top, which is NOT f.processingCents — that is
+  // Stripe's real deduction and differs by the round-up.
+  const shown = f.totalCents - f.advertisedCents;
+  assert(
+    `  ${money(advertised)}: ${money(f.advertisedCents)} + ${money(shown)} = ${money(f.totalCents)}`,
+    f.advertisedCents + shown === f.totalCents,
+  );
+}
+
 console.log("\npercentage-on-top is NOT the same as grossing up");
 for (const [advertised, published] of [[5000, 5186]] as const) {
   // The intuitive version: add the rate to the advertised fee.
