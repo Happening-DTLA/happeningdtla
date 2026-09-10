@@ -5,7 +5,7 @@ import type { EventCategory } from "@dtlahappening/core";
 import { EVENT_CATEGORIES } from "@dtlahappening/core";
 import { api } from "@/api";
 import { useAsync } from "@/useAsync";
-import { theme, space, type } from "@/theme";
+import { theme, space, radius, type } from "@/theme";
 import { CategoryChips, EmptyState, ErrorState, EventCard, Loading } from "@/components";
 
 export default function SearchScreen() {
@@ -46,7 +46,7 @@ export default function SearchScreen() {
             backgroundColor: theme.surface,
             borderColor: theme.border,
             borderWidth: 1,
-            borderRadius: 10,
+            borderRadius: radius.control,
             paddingHorizontal: space.md,
           }}
         >

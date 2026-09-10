@@ -153,7 +153,7 @@ export default function EventScreen() {
                 backgroundColor: pressed ? theme.surface2 : theme.surface,
                 borderColor: theme.accent,
                 borderWidth: 1,
-                borderRadius: 12,
+                borderRadius: radius.control,
                 paddingVertical: space.md,
                 paddingHorizontal: space.lg,
                 flexDirection: "row",
@@ -217,7 +217,7 @@ export default function EventScreen() {
                 backgroundColor: over ? theme.surface2 : live || soon ? theme.accent : theme.surface,
                 borderColor: over ? theme.border : theme.accent,
                 borderWidth: 1,
-                borderRadius: 999,
+                borderRadius: radius.pill,
                 paddingVertical: 5,
                 paddingHorizontal: 11,
                 flexDirection: "row",
@@ -244,7 +244,7 @@ export default function EventScreen() {
                   backgroundColor: theme.surface,
                   borderColor: theme.border,
                   borderWidth: 1,
-                  borderRadius: 999,
+                  borderRadius: radius.pill,
                   paddingVertical: 5,
                   paddingHorizontal: 11,
                 }}
@@ -295,7 +295,7 @@ export default function EventScreen() {
               backgroundColor: theme.surface,
               borderColor: theme.border,
               borderWidth: 1,
-              borderRadius: 12,
+              borderRadius: radius.block,
               overflow: "hidden",
             }}
           >
@@ -508,8 +508,8 @@ export default function EventScreen() {
             onPress={() => scrollRef.current?.scrollTo({ y: Math.max(0, ticketsY - 12), animated: true })}
             accessibilityRole="button"
             style={({ pressed }) => ({
-              backgroundColor: pressed ? "#a8db55" : theme.accent,
-              borderRadius: 10,
+              backgroundColor: pressed ? theme.accentPressed : theme.accent,
+              borderRadius: radius.control,
               paddingVertical: 13,
               paddingHorizontal: space.xl,
             })}
@@ -543,7 +543,7 @@ function TicketTier({
         backgroundColor: theme.surface,
         borderColor: theme.border,
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: radius.block,
         padding: space.lg,
         gap: space.md,
       }}
@@ -578,7 +578,7 @@ function TicketTier({
         <View
           style={{
             backgroundColor: theme.surface2,
-            borderRadius: 10,
+            borderRadius: radius.block,
             paddingVertical: 14,
             paddingHorizontal: space.md,
             alignItems: "center",
@@ -595,8 +595,8 @@ function TicketTier({
           onPress={() => router.push(`/buy/${slug}?tier=${tier.id}`)}
           accessibilityRole="button"
           style={({ pressed }) => ({
-            backgroundColor: unavailable ? theme.surface2 : pressed ? "#a8db55" : theme.accent,
-            borderRadius: 10,
+            backgroundColor: unavailable ? theme.surface2 : pressed ? theme.accentPressed : theme.accent,
+            borderRadius: radius.control,
             paddingVertical: 14,
             alignItems: "center",
           })}

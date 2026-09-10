@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import MapView, { Marker, Polyline, type Region } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
-import { theme, inkOn, withAlpha } from "@/theme";
+import { theme, radius, inkOn, withAlpha } from "@/theme";
 import type { EventCategory } from "@dtlahappening/core";
 import { placeLabels, type MapRegion, type VenuePin } from "@/venue-pins";
 
@@ -128,7 +128,7 @@ const VenueMarker = memo(function VenueMarker({
             backgroundColor: selected ? tint : theme.surface,
             borderColor: tint,
             borderWidth: 1,
-            borderRadius: 999,
+            borderRadius: radius.pill,
             paddingVertical: 6,
             paddingHorizontal: 10,
             // Pins sit on a light map; without a shadow the dark pill
@@ -361,7 +361,7 @@ export function EventMap({
             top: 12,
             width: 40,
             height: 40,
-            borderRadius: 20,
+            borderRadius: radius.pill,
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: pressed ? theme.surface2 : theme.surface,

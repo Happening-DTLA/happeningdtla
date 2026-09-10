@@ -87,7 +87,7 @@ export default function PairScreen() {
           onPress={pair}
           accessibilityRole="button"
           style={({ pressed }) => ({
-            backgroundColor: code.trim().length < 4 || busy ? theme.surface2 : pressed ? "#a8db55" : theme.accent,
+            backgroundColor: code.trim().length < 4 || busy ? theme.surface2 : pressed ? theme.accentPressed : theme.accent,
             borderRadius: 12,
             paddingVertical: 16,
             alignItems: "center",

@@ -197,7 +197,7 @@ export default function PassportScreen() {
         style={({ pressed }) => ({
           marginHorizontal: space.lg,
           marginTop: space.sm,
-          backgroundColor: pressed ? "#a8db55" : theme.accent,
+          backgroundColor: pressed ? theme.accentPressed : theme.accent,
           borderRadius: radius.control,
           paddingVertical: 14,
           alignItems: "center",

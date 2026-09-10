@@ -143,7 +143,7 @@ export default function BuyScreen() {
           }
           accessibilityRole="button"
           style={({ pressed }) => ({
-            backgroundColor: blocked ? theme.surface2 : pressed ? "#a8db55" : theme.accent,
+            backgroundColor: blocked ? theme.surface2 : pressed ? theme.accentPressed : theme.accent,
             borderRadius: 12,
             paddingVertical: 16,
             alignItems: "center",

@@ -13,6 +13,15 @@ export const theme = {
   text: "#f4f4f5",
   textMuted: "#a1a1aa",
   accent: "#bef264",
+  /**
+   * The accent under a finger.
+   *
+   * Named because it was pasted into seven files as a raw hex, which is how a
+   * palette stops being a palette. Darker rather than lighter: the accent is
+   * already near the top of its range, so lightening it on press reads as the
+   * control going dead rather than being held.
+   */
+  accentPressed: "#a8db55",
   accentInk: "#0a0a0c",
   danger: "#f87171",
 } as const;
