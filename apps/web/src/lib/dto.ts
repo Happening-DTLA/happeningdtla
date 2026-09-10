@@ -165,7 +165,10 @@ export function toApiVendorMarket(m: VendorMarketRow): ApiVendorMarket {
     date: calendarDate(m.date),
     hours: m.hours,
     priceCents: m.priceCents,
-    totalCents: priceBreakdown(m.priceCents).totalCents,
+    // The organisers' own published number, NOT priceBreakdown(). Our service
+    // fee is a placeholder that would make the same booth $2.13 dearer in the
+    // app than on their website.
+    totalCents: m.priceCents + m.feeCents,
     acceptsFoodVendors: m.acceptsFoodVendors,
     spacesLeft,
   };

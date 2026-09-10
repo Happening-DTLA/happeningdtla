@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   formatCents,
-  priceBreakdown,
   VENDOR_CATEGORY_LABELS,
   VENDOR_PAYMENT_WINDOW_HOURS,
   type VendorCategory,
@@ -165,7 +164,7 @@ export default async function AdminVendorsPage({
                 </span>
                 <span className="text-text-muted">
                   {marketDate(m.market.date)} ·{" "}
-                  {formatCents(priceBreakdown(m.market.priceCents).totalCents)} ·{" "}
+                  {formatCents(m.market.priceCents + m.market.feeCents)} ·{" "}
                   {m.status.toLowerCase()}
                 </span>
               </li>

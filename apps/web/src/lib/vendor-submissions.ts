@@ -5,7 +5,6 @@ import {
   VENDOR_CATEGORIES,
   VENDOR_CATEGORY_LABELS,
   formatCents,
-  priceBreakdown,
   type VendorCategory,
 } from "@dtlahappening/core";
 import { prisma } from "@/lib/prisma";
@@ -82,6 +81,7 @@ export async function createVendorSubmission(input: VendorSubmissionBody) {
       venueName: true,
       date: true,
       priceCents: true,
+      feeCents: true,
       acceptsFoodVendors: true,
     },
   });
@@ -153,7 +153,7 @@ const REVIEW_INBOX = process.env.SUBMISSIONS_EMAIL?.trim() || "info@dtlaartnight
 
 async function notifyOrganisers(s: VendorSubmissionWithMarkets) {
   const marketLines = s.markets.map((m) => {
-    const total = priceBreakdown(m.market.priceCents).totalCents;
+    const total = m.market.priceCents + m.market.feeCents;
     // A calendar date, so it is formatted in UTC. Rendered in Pacific, the
     // first Thursday of the month shows as a Wednesday.
     const date = m.market.date.toISOString().slice(0, 10);

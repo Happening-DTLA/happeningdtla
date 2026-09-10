@@ -245,6 +245,7 @@ export async function listVendorMarkets(params: { from?: Date } = {}) {
       date: true,
       hours: true,
       priceCents: true,
+      feeCents: true,
       capacity: true,
       acceptsFoodVendors: true,
       _count: { select: { submissions: { where: { status: "CONFIRMED" } } } },
@@ -296,7 +297,14 @@ export async function listVendorSubmissions(params: { status?: string; take?: nu
           id: true,
           status: true,
           market: {
-            select: { id: true, name: true, venueName: true, date: true, priceCents: true },
+            select: {
+              id: true,
+              name: true,
+              venueName: true,
+              date: true,
+              priceCents: true,
+              feeCents: true,
+            },
           },
         },
       },

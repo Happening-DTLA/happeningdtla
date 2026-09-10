@@ -140,6 +140,16 @@ reads `maps.dtlaartnight.com/api/topics/…/points`, the same source the site's
 | About / contact | ❌ not built |
 | User login | ❌ no auth by design |
 
+**Every one of those forms belongs in the app**, at the website's prices
+exactly. Prices are stored as the organisers publish them, per item, and are
+NOT run through `priceBreakdown()` — our service fee is a placeholder of 6% +
+99c that would make a $50 booth cost $53.99 in the app against $51.86 on the
+web. Nobody should pay more for using the app.
+
+**Selling art through the app is out of scope**, decided 10 September 2026. The
+artwork prices on a submission are for the organisers' placement invoice, not a
+storefront.
+
 **The fee gap is the important one.** The site charges **$35** for an artist
 submission plus a hanging fee, and **$50** for a vendor booth (shown all-in as
 $51.86). The app's submission flow has no payment step at all, so an artist who

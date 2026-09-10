@@ -27,6 +27,15 @@ nothing here happens before 1 October.
 > The immediate gap is simpler and more urgent: **the app charges nothing.**
 > There is no payment step in its submission flow, so an artist applying in the
 > app pays nothing while one applying on the web pays $35.
+>
+> **Decided 10 September 2026.** Selling art through the app is **out of scope**
+> — it may become a separate platform later, and nothing about it should be
+> built here. The app's job is the Art Night product: ticketing, and every
+> submission form the website offers. **Prices must match dtlaartnight.com
+> exactly**, which means a published number stored per item rather than one
+> computed by our own `priceBreakdown()` service fee. Their $50 booth is shown
+> as $51.86 — Stripe's rate passed through, no platform margin — where our
+> placeholder would have charged $53.99.
 
 ## The short version
 

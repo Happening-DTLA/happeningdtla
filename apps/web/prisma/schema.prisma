@@ -870,10 +870,20 @@ model VendorMarket {
   /// two timestamps cannot say the second half of it.
   hours String?
 
-  /// Booth fee before the service fee, in integer cents. The site shows $50
-  /// as $51.86 all-in; use priceBreakdown() so the vendor sees the total
-  /// before agreeing to anything, exactly as a ticket buyer does.
+  /// The booth fee the organisers advertise, in integer cents. $50.
   priceCents Int
+
+  /// What is added on top to reach the number the website actually shows —
+  /// $50 becomes $51.86, which is Stripe's own rate passed through so the
+  /// organisers net a clean $50 and take no margin on it.
+  ///
+  /// Stored per market rather than computed by `priceBreakdown()` on purpose.
+  /// That helper encodes OUR service fee, a placeholder of 6% + 99c that would
+  /// price the same booth at $53.99 — $2.13 more than the same booth costs on
+  /// dtlaartnight.com. A vendor must not pay more for using the app, so the
+  /// published number is data, and the only thing that may change it is the
+  /// organisers changing their price.
+  feeCents Int @default(0)
 
   /// How many booths exist. Approving beyond this is the oversell problem
   /// wearing different clothes: two vendors turn up for one table and one gets

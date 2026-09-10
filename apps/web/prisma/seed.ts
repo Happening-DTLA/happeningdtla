@@ -48,6 +48,14 @@ async function main() {
   // After venues: they reference corridors, and the relation is SetNull rather
   // than cascade, so a corridor with venues still attached would linger.
   await prisma.corridor.deleteMany();
+  // Submissions and vendor markets. Added to the schema later than this list
+  // was written, and both were missing from it — so re-seeding stacked a
+  // second copy of every market rather than replacing them. A VendorMarket
+  // references a Night with SetNull rather than cascade, so it has to go
+  // BEFORE the nights or it survives as an orphan.
+  await prisma.artistSubmission.deleteMany();
+  await prisma.vendorSubmission.deleteMany();
+  await prisma.vendorMarket.deleteMany();
   await prisma.night.deleteMany();
   await prisma.organizerMember.deleteMany();
   await prisma.organizer.deleteMany();
@@ -472,6 +480,8 @@ async function main() {
         date: day("2026-10-01"),
         hours: "4pm–10pm · setup 2:30–3:45pm · covered, no canopy needed",
         priceCents: 5000,
+        // dtlaartnight.com shows this booth as $51.86 all-in.
+        feeCents: 186,
         capacity: 30,
         // Their rule, verbatim: "Currently, we are not accepting food vendors
         // for this location."
@@ -487,6 +497,8 @@ async function main() {
         date: day("2026-11-05"),
         hours: "4pm–10pm · setup 2:30–3:45pm",
         priceCents: 5000,
+        // dtlaartnight.com shows this booth as $51.86 all-in.
+        feeCents: 186,
         capacity: 30,
         acceptsFoodVendors: false,
         isPublished: true,
@@ -500,6 +512,7 @@ async function main() {
         date: day("2026-11-30"),
         hours: "One-day holiday market · setup details shared closer to the date",
         priceCents: 5000,
+        feeCents: 186,
         capacity: 40,
         // Subject to review here, rather than refused outright — pre-made,
         // no-cook, self-contained items only.
