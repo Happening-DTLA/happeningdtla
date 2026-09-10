@@ -6,6 +6,23 @@ DTLA's revenue, not a venue's**, and ticketing's money model assumes a venue.
 
 Nothing here is built yet. This is the decision the build waits on.
 
+> **Decided 10 September 2026.** Happening in DTLA is a separate legal entity,
+> so participation fees are **direct charges on their own Connect account** —
+> they are merchant of record, the money never touches the platform's balance,
+> and there is **no platform-charge fallback**. The platform takes **no fee for
+> now**; the agreed rate when it is switched on is **5%**, and it is a single
+> constant (`PLATFORM_FEE_PERCENT`). The advertised fee is **not** inclusive of
+> processing: the applicant is grossed up so the organisers net what they
+> advertise, exactly as their website already does.
+>
+> One correction found while implementing this: the organisers gross up at a
+> round **3% + 30c**, not Stripe's 2.9%. That is the only rate reproducing
+> their published $51.86 for a $50 booth — 2.9% gives $51.81. Since Stripe then
+> deducts its real 2.9%, they land a few cents *above* the advertised fee
+> ($50.06 on $50). `packages/core/src/participation-fees.ts` keeps the two
+> rates separate for this reason, and `npm run test:fees` locks the published
+> price in.
+
 ---
 
 ## How money moves today

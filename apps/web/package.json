@@ -22,7 +22,8 @@
     "test:team": "tsx scripts/test-team.ts",
     "test:dates": "tsx scripts/test-dates.ts",
     "test:ratelimit": "tsx scripts/test-rate-limit.ts",
-    "sync:artnight": "tsx scripts/sync-artnight.ts"
+    "sync:artnight": "tsx scripts/sync-artnight.ts",
+    "test:fees": "tsx scripts/test-fees.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.8.0",

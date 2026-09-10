@@ -12,5 +12,6 @@ export * from "./ticket-code";
 export * from "./submissions";
 export * from "./vendors";
 export * from "./participation";
+export * from "./participation-fees";
 export * from "./geo";
 export * from "./passport";
