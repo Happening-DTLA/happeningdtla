@@ -44,6 +44,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/submissions" className="text-text-muted hover:text-accent">
             Artist submissions
           </Link>
+          <Link href="/admin/vendors" className="text-text-muted hover:text-accent">
+            Vendor applications
+          </Link>
           <Link href="/organizer" className="text-text-muted hover:text-accent">
             Venue dashboard
           </Link>

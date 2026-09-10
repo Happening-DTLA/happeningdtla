@@ -217,3 +217,98 @@ export async function countSubmissionsByStatus() {
   });
   return Object.fromEntries(rows.map((r) => [r.status, r._count._all])) as Record<string, number>;
 }
+
+/**
+ * Vendor markets open for applications, soonest first.
+ *
+ * `spacesLeft` counts CONFIRMED rows only. An APPROVED-but-unpaid application
+ * is holding nothing — their rule is that a space is secured by payment within
+ * 72 hours — so counting it would quietly shrink a market that still has room.
+ * This number is for display and is never authoritative: the transaction that
+ * confirms a booth must re-check capacity atomically, the way checkout
+ * re-checks inventory.
+ */
+export async function listVendorMarkets(params: { from?: Date } = {}) {
+  const { from = new Date() } = params;
+  // Compare on the LA calendar date, represented as UTC for the `date` column
+  // — the same lower bound /api/nights/upcoming uses, and for the same reason.
+  const { currentNightDate } = await import("@/lib/night-date");
+
+  return prisma.vendorMarket.findMany({
+    where: { isPublished: true, date: { gte: currentNightDate(from) } },
+    orderBy: { date: "asc" },
+    select: {
+      id: true,
+      name: true,
+      venueName: true,
+      address: true,
+      date: true,
+      hours: true,
+      priceCents: true,
+      capacity: true,
+      acceptsFoodVendors: true,
+      _count: { select: { submissions: { where: { status: "CONFIRMED" } } } },
+    },
+  });
+}
+
+/**
+ * Vendor applications, newest first — the platform-admin review queue.
+ *
+ * Fields listed rather than spread, for the reason at the top of this file.
+ * These rows hold less than an artist submission does — a business address is
+ * not collected — but they are still somebody's phone number, and `userId` is
+ * left out because who a vendor is in our user table is not part of judging
+ * whether their table will look good in an arcade.
+ */
+export async function listVendorSubmissions(params: { status?: string; take?: number } = {}) {
+  const { status, take = 100 } = params;
+
+  return prisma.vendorSubmission.findMany({
+    where: status ? { status: status as never } : {},
+    orderBy: { createdAt: "desc" },
+    take,
+    select: {
+      id: true,
+      businessName: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      socials: true,
+      website: true,
+      category: true,
+      merchandise: true,
+      presentation: true,
+      standout: true,
+      photos: true,
+      status: true,
+      emailConsent: true,
+      smsConsent: true,
+      consentAt: true,
+      approvedAt: true,
+      payBy: true,
+      reviewedAt: true,
+      reviewerNote: true,
+      createdAt: true,
+      markets: {
+        select: {
+          id: true,
+          status: true,
+          market: {
+            select: { id: true, name: true, venueName: true, date: true, priceCents: true },
+          },
+        },
+      },
+    },
+  });
+}
+
+/** How many vendor applications sit in each status. */
+export async function countVendorSubmissionsByStatus() {
+  const rows = await prisma.vendorSubmission.groupBy({
+    by: ["status"],
+    _count: { _all: true },
+  });
+  return Object.fromEntries(rows.map((r) => [r.status, r._count._all])) as Record<string, number>;
+}
