@@ -126,6 +126,21 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   "[Worklets] Failed to create a worklet" on the first Reanimated import. Hence
   `apps/mobile/babel.config.js`, and `babel-preset-expo` as a devDependency
   there so the config can name it. Keep the worklets plugin LAST.
+- **Over-the-air updates exist, and they cannot ship native changes.**
+  `expo-updates` is configured against EAS channels that match the build
+  profiles in `eas.json` — a `preview` update cannot reach a `production`
+  build. `runtimeVersion` uses the **fingerprint** policy, which hashes the
+  actual native dependency set, so an update can only land on a binary whose
+  native side matches it. The alternative (`appVersion`) is a human-maintained
+  string, and getting it wrong is silent: the update installs onto a binary
+  missing a native module and the app crashes on launch for everyone at once.
+  So: JS, assets and copy ship over the air in minutes; anything touching a
+  native module still needs a build and a review. Apple permits OTA for fixes
+  and content, not for changing what the app fundamentally does.
+- **`expo prebuild` regenerates `ios/`, and `.xcode.env.local` is where local
+  native fixes go.** Plain `prebuild` leaves that file alone; `prebuild --clean`
+  does not. The Sentry upload flag lives there, so a `--clean` costs you a
+  build failure until it is put back.
 - **After changing any native dependency, restart Metro with `--clear`.** The
   transform cache survives an npm install and will happily keep serving the
   previous version's code.
