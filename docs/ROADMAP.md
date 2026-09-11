@@ -1,6 +1,10 @@
 # Roadmap — to DTLA Art Night, Thursday 1 October 2026
 
-Updated 10 September 2026. **21 days.**
+Updated 11 September 2026. **20 days.**
+
+> For the current state of play — what is deployed, what is blocked and on whom,
+> and the decisions already settled — read `docs/HANDOFF.md` first. This file is
+> the plan; that one is the position.
 
 ## The one thing that matters
 
