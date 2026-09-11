@@ -23,9 +23,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.dtlahappening.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Scanning ticket QR codes at venue doors.",
-        "NSLocationWhenInUseUsageDescription": "Showing events near you on the map, and where you are in relation to them."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -47,9 +45,37 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-font",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Attaching photos of your work to an artist or vendor application.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scanning ticket QR codes at venue doors.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Showing events near you on the map, and how far you are from each stop.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "isIosBackgroundLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
