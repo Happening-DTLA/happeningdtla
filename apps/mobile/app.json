@@ -3,6 +3,13 @@
     "name": "DTLAHappening",
     "slug": "dtlahappening",
     "version": "0.1.0",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/70169062-3300-4455-b53c-3327511ab869",
+      "fallbackToCacheTimeout": 3000
+    },
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "dtlahappening",

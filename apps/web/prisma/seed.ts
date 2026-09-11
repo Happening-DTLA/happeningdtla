@@ -48,6 +48,14 @@ async function main() {
   // After venues: they reference corridors, and the relation is SetNull rather
   // than cascade, so a corridor with venues still attached would linger.
   await prisma.corridor.deleteMany();
+  // Submissions and vendor markets. Added to the schema later than this list
+  // was written, and both were missing from it — so re-seeding stacked a
+  // second copy of every market rather than replacing them. A VendorMarket
+  // references a Night with SetNull rather than cascade, so it has to go
+  // BEFORE the nights or it survives as an orphan.
+  await prisma.artistSubmission.deleteMany();
+  await prisma.vendorSubmission.deleteMany();
+  await prisma.vendorMarket.deleteMany();
   await prisma.night.deleteMany();
   await prisma.organizerMember.deleteMany();
   await prisma.organizer.deleteMany();
@@ -457,10 +465,71 @@ async function main() {
 
   const pinned = ART_NIGHT_VENUES.filter((v) => v.lat !== null).length;
 
+  console.log("→ vendor markets…");
+  // The real markets from dtlaartnight.com/vendor-submission. Dates are
+  // calendar dates — constructed as UTC midnight so the first Thursday stays
+  // the first Thursday. See src/lib/datetime.ts.
+  const day = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+  const vendorMarkets = await Promise.all([
+    prisma.vendorMarket.create({
+      data: {
+        organizerId: artNightOrg.id,
+        nightId: artNight.id,
+        name: "Spring Street Arcade Vendor Market",
+        venueName: "Spring Arcade Building",
+        address: "540 S. Spring St, Los Angeles, CA 90013",
+        date: day("2026-10-01"),
+        hours: "4pm–10pm · setup 2:30–3:45pm · covered, no canopy needed",
+        priceCents: 5000,
+        // dtlaartnight.com shows this booth as $51.86 all-in.
+        feeCents: 186,
+        capacity: 30,
+        // Their rule, verbatim: "Currently, we are not accepting food vendors
+        // for this location."
+        acceptsFoodVendors: false,
+        isPublished: true,
+      },
+    }),
+    prisma.vendorMarket.create({
+      data: {
+        organizerId: artNightOrg.id,
+        name: "Spring Street Arcade Vendor Market",
+        venueName: "Spring Arcade Building",
+        address: "540 S. Spring St, Los Angeles, CA 90013",
+        date: day("2026-11-05"),
+        hours: "4pm–10pm · setup 2:30–3:45pm",
+        priceCents: 5000,
+        // dtlaartnight.com shows this booth as $51.86 all-in.
+        feeCents: 186,
+        capacity: 30,
+        acceptsFoodVendors: false,
+        isPublished: true,
+      },
+    }),
+    prisma.vendorMarket.create({
+      data: {
+        organizerId: artNightOrg.id,
+        name: "The Great Rock N Roll Holiday Flea Market",
+        venueName: "The Regent Theater",
+        address: "448 Main St, Los Angeles, CA",
+        date: day("2026-11-30"),
+        hours: "One-day holiday market · setup details shared closer to the date",
+        priceCents: 5000,
+        feeCents: 186,
+        capacity: 40,
+        // Subject to review here, rather than refused outright — pre-made,
+        // no-cook, self-contained items only.
+        acceptsFoodVendors: true,
+        isPublished: true,
+      },
+    }),
+  ]);
+
   console.log("\n✓ Seed complete.");
   console.log(`  ArtNight: ${artNight.name} — ${ART_NIGHT_VENUES.length} venues, ${ART_NIGHT_CORRIDORS.length} corridors, ${pinned} pinned on the map`);
   console.log(`  Demo:     ${demoNight.name}`);
   console.log(`  Venues:  6   Events: 13   Organizers: 3`);
+  console.log(`  Vendor markets: ${vendorMarkets.length}`);
   console.log(`  Demo login email: ${attendee.email}`);
   console.log(`  Scannable ticket codes:`);
   for (const t of order.tickets) console.log(`    ${t.code}`);

@@ -28,7 +28,6 @@ datasource db {
 /// signup before purchase is the single biggest conversion killer in ticketing.
 /**
  * What someone is here to do.
- *
  * Set at onboarding and not a permission system: it decides which submission
  * modules a person is offered, not what they are allowed to read. Everyone can
  * attend, so ATTENDEE is the floor rather than a lesser tier — an artist is an
@@ -38,31 +37,38 @@ enum ProfileType {
   ATTENDEE
   ARTIST
   VENUE
+  /// Someone who sells at a booth, which is not the same as someone who runs a
+  /// room. A gallery hosting the night is a VENUE; the person with a table of
+  /// jewellery in its arcade is a VENDOR.
+  VENDOR
 }
 
 model User {
-  id          String   @id @default(cuid())
-  clerkId     String?  @unique
-  email       String   @unique
-  phone       String?  @unique
+  id          String  @id @default(cuid())
+  clerkId     String? @unique
+  email       String  @unique
+  phone       String? @unique
   displayName String?
-  handle      String?  @unique
+  handle      String? @unique
   avatarUrl   String?
 
   /// Which submission modules this person sees. See ProfileType.
   profileType ProfileType @default(ATTENDEE)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  orders         Order[]
-  tickets        Ticket[]          @relation("TicketOwner")
-  memberships    OrganizerMember[]
-  scansPerformed Scan[]            @relation("ScannedBy")
-  following      Follow[]          @relation("Follower")
-  followers      Follow[]          @relation("Following")
-  interests      EventInterest[]
-  checkIns       VenueCheckIn[]
-  submissions    ArtistSubmission[]
+  orders                   Order[]
+  tickets                  Ticket[]                  @relation("TicketOwner")
+  memberships              OrganizerMember[]
+  scansPerformed           Scan[]                    @relation("ScannedBy")
+  following                Follow[]                  @relation("Follower")
+  followers                Follow[]                  @relation("Following")
+  interests                EventInterest[]
+  checkIns                 VenueCheckIn[]
+  submissions              ArtistSubmission[]
+  vendorSubmissions        VendorSubmission[]
+  entertainmentSubmissions EntertainmentSubmission[]
+  volunteerSubmissions     VolunteerSubmission[]
 
   @@index([email])
 }
@@ -95,10 +101,12 @@ model Organizer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members OrganizerMember[]
-  invites OrganizerInvite[]
-  venues  Venue[]
-  events  Event[]
+  members           OrganizerMember[]
+  vendorMarkets     VendorMarket[]
+  participationFees ParticipationFee[]
+  invites           OrganizerInvite[]
+  venues            Venue[]
+  events            Event[]
 }
 
 enum OrganizerRole {
@@ -163,9 +171,9 @@ model OrganizerMember {
 /// The colour is stored rather than derived so the app and the poster on the
 /// wall always agree, even when the organisers change one.
 model Corridor {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   name      String
-  slug      String @unique
+  slug      String  @unique
   /// Hex, matching the printed map's key.
   color     String
   /// The street it runs along, for wayfinding copy. Null for a district.
@@ -263,8 +271,9 @@ model Night {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  events   Event[]
-  checkIns VenueCheckIn[]
+  events        Event[]
+  checkIns      VenueCheckIn[]
+  vendorMarkets VendorMarket[]
 
   @@index([date])
 }
@@ -637,13 +646,11 @@ model EventInterest {
 /// free venue with no ticket at all.
 /**
  * Somebody stood at a door.
- *
  * The phone is the source of truth for this, not the database — a passport
  * that needs the network to stamp fails in the ground-floor gallery it exists
  * for. These rows are the aggregate copy, sent when there is signal, and they
  * exist to answer one question for the organisers: how many people actually
  * walked to each venue.
- *
  * So it identifies a device rather than a person. `deviceId` is a random value
  * generated on install, tied to no account and no contact detail, and a
  * reinstall produces a new one — deliberately, because a counter does not need
@@ -652,20 +659,20 @@ model EventInterest {
  * on a second phone.
  */
 model VenueCheckIn {
-  id      String  @id @default(cuid())
-  userId  String?
+  id       String  @id @default(cuid())
+  userId   String?
   /// Anonymous, per-install. See the note above.
   deviceId String?
-  venueId String
-  nightId String?
+  venueId  String
+  nightId  String?
 
   /// When the person stamped it, which is not when we heard about it — a
   /// stamp collected in a basement may arrive an hour later.
-  at DateTime @default(now())
+  at       DateTime @default(now())
   /// Whether the phone could see them near the door at the time. False is a
   /// legitimate check-in, not a suspect one: GPS in the Historic Core is poor
   /// and refusing someone standing in the room is the worse failure.
-  verified Boolean @default(false)
+  verified Boolean  @default(false)
 
   createdAt DateTime @default(now())
 
@@ -705,15 +712,12 @@ model RateLimit {
   @@index([expiresAt])
 }
 
-
 /**
  * Where an artist's application has got to.
- *
  * Mirrors the process the organisers already publish rather than a generic
  * workflow: work is reviewed, and a decline is explicitly not the end — their
  * page promises five days to resubmit new work at no additional charge, which
  * is why DECLINED carries a deadline rather than closing the record.
- *
  * APPROVED means the curatorial decision is made, not that the artist is in.
  * Participation is confirmed when the placement invoice is paid, and that is a
  * separate fact from whether the work was accepted.
@@ -728,7 +732,6 @@ enum SubmissionStatus {
 
 /**
  * An artist applying to exhibit in the ArtNight gallery network.
- *
  * Modelled on the organisers' own form at dtlaartnight.com/artist-submission,
  * field for field, so an application made here is one their curatorial process
  * already knows how to read. The one deliberate departure is the artwork list:
@@ -777,13 +780,14 @@ model ArtistSubmission {
   reviewerNote String?
   /// Set on a decline: their published promise is five days to resubmit new
   /// work at no additional charge, so the deadline is data, not a policy page.
-  resubmitBy DateTime?
+  resubmitBy   DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user     User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   artworks SubmissionArtwork[]
+  fee      ParticipationFee?
 
   @@index([email])
   @@index([status, createdAt])
@@ -792,12 +796,10 @@ model ArtistSubmission {
 
 /**
  * One piece being submitted for placement.
- *
  * Priced individually because the organisers invoice per accepted piece, and
  * measured because placement depends on it — their published rule quotes
  * separately for anything over four feet tall, three feet wide or fifty
  * pounds, so the dimensions decide which pieces need a custom quote.
- *
  * Dimensions are inches INCLUDING THE FRAME, which is what their form asks for
  * and what a wall actually has to accommodate.
  */
@@ -824,4 +826,402 @@ model SubmissionArtwork {
   submission ArtistSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
   @@index([submissionId])
+}
+
+// ---------------------------------------------------------------------------
+// Vendor markets
+// ---------------------------------------------------------------------------
+
+/// Their categories, from the vendor form on dtlaartnight.com, stored as an
+/// enum rather than free text because the organisers filter by them when
+/// balancing a market — twelve jewellery sellers and no food is a bad night.
+enum VendorCategory {
+  FASHION_APPAREL
+  ACCESSORIES
+  BEAUTY_WELLNESS
+  ART_ARTISAN_GOODS
+  HOME_LIFESTYLE
+  PLANTS_GARDEN
+  PET_PRODUCTS
+  KIDS_FAMILY
+  DIGITAL_CREATIVE_SERVICES
+  VINTAGE_ANTIQUES
+  CULTURAL_METAPHYSICAL
+  SERVICES_EXPERIENCES
+  FOOD_BEVERAGE
+  OTHER
+}
+
+/// One market on one date — "Spring Street Arcade Vendor Market, Thu 1 Oct".
+///
+/// A market rather than a `TicketType` because a booth is applied for and
+/// approved before it is paid for, and an application has nowhere to live on a
+/// ticket type. Most Art Night markets hang off a `Night`; the Regent holiday
+/// flea market does not, so `nightId` is optional.
+model VendorMarket {
+  id String @id @default(cuid())
+
+  /// Who is paid for a booth here, and who is the merchant of record for it.
+  ///
+  /// Required, exactly like Event.organizerId, because a market whose booth
+  /// fee has no destination cannot be sold. These fees are Happening in
+  /// DTLA's revenue rather than a venue's, so this points at their Organizer
+  /// row — the same Connect mechanism ticketing uses, pointed somewhere else.
+  organizerId String
+
+  nightId String?
+
+  name      String // "Spring Street Arcade Vendor Market"
+  venueName String // "Spring Arcade Building"
+  address   String?
+
+  /// A calendar date, like Night.date, and formatted the SAME WAY — in UTC.
+  /// See src/lib/datetime.ts. Rendered in Pacific, the first Thursday shows as
+  /// a Wednesday.
+  date DateTime @db.Date
+
+  /// Free text, because "4pm–10pm, setup 2:30–3:45" is what a vendor needs and
+  /// two timestamps cannot say the second half of it.
+  hours String?
+
+  /// The booth fee the organisers advertise, in integer cents. $50.
+  priceCents Int
+
+  /// What is added on top to reach the number the website actually shows —
+  /// $50 becomes $51.86, which is Stripe's own rate passed through so the
+  /// organisers net a clean $50 and take no margin on it.
+  ///
+  /// Stored per market rather than computed by `priceBreakdown()` on purpose.
+  /// That helper encodes OUR service fee, a placeholder of 6% + 99c that would
+  /// price the same booth at $53.99 — $2.13 more than the same booth costs on
+  /// dtlaartnight.com. A vendor must not pay more for using the app, so the
+  /// published number is data, and the only thing that may change it is the
+  /// organisers changing their price.
+  feeCents Int @default(0)
+
+  /// How many booths exist. Approving beyond this is the oversell problem
+  /// wearing different clothes: two vendors turn up for one table and one gets
+  /// turned away at the door. Count CONFIRMED rows in a conditional UPDATE —
+  /// never read-then-write.
+  capacity Int
+
+  /// Spring Arcade takes no food vendors; the Regent takes them subject to
+  /// review. Data rather than a paragraph, so the form can enforce it.
+  acceptsFoodVendors Boolean @default(false)
+
+  isPublished Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizer   Organizer                @relation(fields: [organizerId], references: [id], onDelete: Restrict)
+  night       Night?                   @relation(fields: [nightId], references: [id], onDelete: SetNull)
+  submissions VendorSubmissionMarket[]
+
+  @@index([date])
+  @@index([nightId])
+  @@index([organizerId])
+}
+
+enum VendorSubmissionStatus {
+  SUBMITTED
+  IN_REVIEW
+  /// Approved and holding a space, but not yet paid. See `payBy`.
+  APPROVED
+  /// Paid. This is the only status that occupies capacity for good.
+  CONFIRMED
+  DECLINED
+  WITHDRAWN
+  /// Approved and the 72-hour window passed unpaid, so the space went back.
+  EXPIRED
+}
+
+/// A vendor applying to sell at one or more markets.
+///
+/// Modelled on the organisers' own form, field for field, so an application
+/// made here reads the same as one made on the website. The three prose
+/// questions are theirs and are the ones curation actually turns on — what you
+/// sell, how it looks on a table, and why you rather than the next applicant.
+model VendorSubmission {
+  id     String  @id @default(cuid())
+  /// Null for a guest application, the same path artist submissions and
+  /// checkout already allow.
+  userId String?
+
+  businessName String
+  firstName    String
+  lastName     String
+  email        String
+  phone        String
+
+  /// Required on their form and accepts "NA", so this stores what the vendor
+  /// actually typed rather than pretending it is a URL.
+  socials String
+  website String
+
+  category VendorCategory
+
+  merchandise  String // "Describe your merchandise"
+  presentation String // "How you present it"
+  standout     String // "What makes you stand out"
+
+  /// Up to five, optional. Booth shots matter more than product shots here,
+  /// because the organisers are curating how a room will look.
+  photos String[] @default([])
+
+  status VendorSubmissionStatus @default(SUBMITTED)
+
+  /// Consent, with the moment it was given — a boolean alone cannot answer
+  /// "when did they agree", which is the only question that matters if it is
+  /// ever disputed. SMS is separate because it is a separate legal ask.
+  emailConsent Boolean  @default(false)
+  smsConsent   Boolean  @default(false)
+  consentAt    DateTime
+
+  reviewedAt   DateTime?
+  reviewerNote String?
+
+  approvedAt DateTime?
+  /// Their published rule: payment within 72 hours of approval or the space is
+  /// released. A deadline is data, not a policy page — the sweep that expires
+  /// unpaid approvals needs to read it.
+  payBy      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User?                    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  markets VendorSubmissionMarket[]
+
+  @@index([email])
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+/// Which markets an application is for.
+///
+/// A join table because the form lets a vendor pick several dates at once and
+/// each one is decided separately — approved for October, declined for
+/// November is a normal outcome, and a single status on the submission could
+/// not express it.
+model VendorSubmissionMarket {
+  id           String @id @default(cuid())
+  submissionId String
+  marketId     String
+
+  status VendorSubmissionStatus @default(SUBMITTED)
+
+  submission VendorSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  market     VendorMarket      @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  fee        ParticipationFee?
+
+  @@unique([submissionId, marketId])
+  @@index([marketId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Entertainment and volunteers
+// ---------------------------------------------------------------------------
+
+/// Their three options, verbatim: "Fee Required", "Volunteer", "Other".
+enum EntertainerFeePreference {
+  FEE_REQUIRED
+  VOLUNTEER
+  OTHER
+}
+
+/// A performer applying to play Art Night.
+///
+/// Modelled on dtlaartnight.com/entertainers-submission. Note the fee question
+/// is on the FORM, not in a follow-up: the organisers need to know whether an
+/// act costs money before they shortlist it, and asking later wastes both
+/// sides' time.
+model EntertainmentSubmission {
+  id     String  @id @default(cuid())
+  userId String?
+
+  firstName String
+  lastName  String
+  email     String
+  phone     String
+
+  /// "Band or Artist Name" on their form.
+  actName String
+
+  /// "What type of music do you perform?" — the only optional field on their
+  /// form, and left optional here. A live painter is not a music act.
+  performanceType String?
+
+  /// "Instagram, you tube or other". Required, free text, because it is
+  /// routinely a handle rather than a URL.
+  links String
+
+  /// "Please submit a promotional photo for future use." Required on their
+  /// form; the organisers use it in event marketing.
+  promoImageUrl String
+
+  feePreference EntertainerFeePreference
+
+  /// What "Other" meant. Meaningless for the other two options.
+  feeNote String?
+
+  status SubmissionStatus @default(SUBMITTED)
+
+  consentAt    DateTime
+  reviewedAt   DateTime?
+  reviewerNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+/// Their five roles, as checkboxes — a volunteer may pick several.
+enum VolunteerRole {
+  INFORMATION_BOOTH
+  DOOR_ATTENDANT
+  BLOCK_ENTERTAINMENT
+  GALLERY_ASSISTANT
+  RUNNER
+}
+
+/// Someone offering to help run the night.
+///
+/// Modelled on dtlaartnight.com/volunteer-submission with ONE DELIBERATE
+/// DIFFERENCE. Their form requires uploading a California/US ID to check age.
+/// This does not, and must not until there is somewhere private to put one:
+/// the `submissions` bucket is public, so an identity document uploaded there
+/// would sit on a URL anyone could read. `isAdult` records the same fact the
+/// ID was being used to establish, and the organisers can check ID in person
+/// on the night, which is when it actually matters.
+model VolunteerSubmission {
+  id     String  @id @default(cuid())
+  userId String?
+
+  firstName String
+  lastName  String
+  email     String
+  phone     String
+
+  /// "Best time to reach you" — free text on their form, and left free text
+  /// because "after 4pm on weekdays" is a real answer no dropdown contains.
+  bestTimeToReach String
+
+  roles VolunteerRole[] @default([])
+
+  /// Their rule: volunteers must be 18 or over. An attestation with a
+  /// timestamp, which is what the ID upload was for.
+  isAdult Boolean
+
+  status SubmissionStatus @default(SUBMITTED)
+
+  consentAt    DateTime
+  reviewedAt   DateTime?
+  reviewerNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Participation fees
+// ---------------------------------------------------------------------------
+
+enum ParticipationFeeKind {
+  ARTIST_SUBMISSION
+  VENDOR_BOOTH
+}
+
+enum ParticipationFeeStatus {
+  PENDING
+  PAID
+  FAILED
+  /// A booth approval whose 72-hour window passed unpaid. The space went back.
+  EXPIRED
+  REFUNDED
+}
+
+/// One thing somebody owes for taking part.
+///
+/// Separate from `Order` because an order cannot express this: `Order.eventId`
+/// is required and every `OrderItem` points at a `TicketType`, and a booth fee
+/// belongs to a market while a submission fee belongs to an application.
+/// Forcing it through orders would mean inventing a fake event, which is the
+/// kind of shortcut that later reads as a real event to a query nobody
+/// remembered to filter.
+///
+/// It is also a genuinely smaller thing than an order: no inventory to hold,
+/// no ticket to issue, no door to scan. What it does share are the invariants
+/// that matter — integer cents, one charge per thing owed, and a webhook that
+/// can be delivered twice without charging twice.
+model ParticipationFee {
+  id   String               @id @default(cuid())
+  kind ParticipationFeeKind
+
+  /// Who receives the money. The charge is created ON this account, so they
+  /// are the merchant of record for it. See docs/participation-fees.md.
+  organizerId String
+
+  /// Exactly one of these is set — enforced by the API rather than by the
+  /// database, because Postgres cannot express "exactly one of" without a
+  /// check constraint Prisma does not model. Both are unique, so a thing can
+  /// never accumulate two fees and be charged twice for the same place.
+  artistSubmissionId       String? @unique
+  vendorSubmissionMarketId String? @unique
+
+  /// The fee as the organisers advertise it — $35, $50.
+  advertisedCents  Int
+  /// What Stripe will deduct. The applicant covers it; see participation-fees.ts.
+  processingCents  Int
+  /// The platform's cut. Zero today, 5% when switched on.
+  platformFeeCents Int @default(0)
+  /// What the applicant is actually charged. The only number to show them.
+  totalCents       Int
+
+  status ParticipationFeeStatus @default(PENDING)
+
+  /// Who is paying, denormalised because an applicant may have no account —
+  /// the same guest-first path every other entry point here allows.
+  payerEmail String
+  payerName  String?
+
+  /// When payment is due, for booths. Null for artist fees, which are paid at
+  /// submission rather than on approval, so there is no window to miss.
+  payBy DateTime?
+
+  /// Bearer secret, handed to the payer in the email that asks them to pay.
+  /// A cuid is unguessable enough to be a primary key and NOT enough to be a
+  /// credential, so paying requires this as well as the id.
+  accessToken String @unique @default(cuid())
+
+  stripePaymentIntentId String? @unique
+  stripeChargeId        String?
+
+  /// The connected account the charge lives on. Recorded because a direct
+  /// charge cannot be retrieved or refunded without knowing which account it
+  /// was made on — and by then the organizer row may have changed.
+  stripeAccountId String?
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  organizer              Organizer               @relation(fields: [organizerId], references: [id], onDelete: Restrict)
+  artistSubmission       ArtistSubmission?       @relation(fields: [artistSubmissionId], references: [id], onDelete: Cascade)
+  vendorSubmissionMarket VendorSubmissionMarket? @relation(fields: [vendorSubmissionMarketId], references: [id], onDelete: Cascade)
+
+  @@index([organizerId])
+  @@index([status, payBy])
+  @@index([payerEmail])
 }

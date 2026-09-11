@@ -4,9 +4,15 @@ import type {
   ApiNight,
   ApiTicketType,
   ApiVenue,
+  ApiVendorMarket,
 } from "@dtlahappening/core";
 import { priceBreakdown } from "@dtlahappening/core";
-import type { getEventBySlug, getUpcomingNight, getStandaloneEvents } from "@/lib/queries";
+import type {
+  getEventBySlug,
+  getUpcomingNight,
+  getStandaloneEvents,
+  listVendorMarkets,
+} from "@/lib/queries";
 import { remaining } from "@/lib/queries";
 
 /**
@@ -136,5 +142,34 @@ export function toApiNight(n: NightRow): ApiNight {
     description: n.description,
     heroImageUrl: n.heroImageUrl,
     events: n.events.map(toApiEventSummary),
+  };
+}
+
+type VendorMarketRow = Awaited<ReturnType<typeof listVendorMarkets>>[number];
+
+/**
+ * A vendor market, as a client may see it.
+ *
+ * `capacity` is deliberately NOT published — how many booths a market holds is
+ * the organisers' commercial information, and a vendor only needs to know
+ * whether there is room. `totalCents` is the all-in figure, because a booth
+ * fee is a price on a screen and gets the same treatment as a ticket.
+ */
+export function toApiVendorMarket(m: VendorMarketRow): ApiVendorMarket {
+  const spacesLeft = Math.max(0, m.capacity - m._count.submissions);
+  return {
+    id: m.id,
+    name: m.name,
+    venueName: m.venueName,
+    address: m.address,
+    date: calendarDate(m.date),
+    hours: m.hours,
+    priceCents: m.priceCents,
+    // The organisers' own published number, NOT priceBreakdown(). Our service
+    // fee is a placeholder that would make the same booth $2.13 dearer in the
+    // app than on their website.
+    totalCents: m.priceCents + m.feeCents,
+    acceptsFoodVendors: m.acceptsFoodVendors,
+    spacesLeft,
   };
 }

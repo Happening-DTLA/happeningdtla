@@ -62,6 +62,27 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
 
 - **Middleware is `proxy.ts` in Next 16**, not `middleware.ts`. Same behavior,
   renamed. CORS for `/api/*` lives in `apps/web/src/proxy.ts`.
+- **`PageProps` and `LayoutProps` do not exist until something builds.** Next 16
+  generates them into `.next/dev/types`, which `tsconfig.json` includes. On a
+  fresh clone `npm run typecheck` therefore fails with `TS2304: Cannot find name
+  'PageProps'` in files that are completely correct. Run `next dev` or
+  `next build` once and it goes away. Do not "fix" it by hand-writing the types.
+- **New route files fail typecheck until the dev server has seen them.** Expo
+  Router generates typed routes into `apps/mobile/.expo/types/router.d.ts`, so
+  a freshly added screen makes `router.push("/submit/vendor")` an error —
+  "not assignable to parameter of type ..." — while the file plainly exists.
+  Start Metro and the types regenerate within seconds. It is the same class of
+  problem as `PageProps` on the web side: correct code, absent generated types.
+- **A local iOS build fails on Sentry unless a flag is set.** The bundle phase
+  runs `sentry-cli`, the Sentry projects in `docs/error-reporting.md` were never
+  created, and the upload dies with `An organization ID or slug is required` —
+  taking the whole build with it, exit 65, buried under ~2500 unrelated pod
+  warnings. `apps/mobile/package.json`'s `ios:native` sets
+  `SENTRY_DISABLE_AUTO_UPLOAD=true`, **but only that script does**: a build
+  started from Xcode.app, from `xcodebuild`, or from a build tool does not
+  inherit it. The fix is `export SENTRY_DISABLE_AUTO_UPLOAD=true` in
+  `apps/mobile/ios/.xcode.env.local`, which every script phase sources. Note
+  `/ios` is gitignored, so that file does not survive `expo prebuild`.
 - **`generateImageMetadata` passes `id` as a Promise.** Not awaiting it gives
   `fontSize: NaN` and a 500 at request time, not a type error.
 - **Don't use expo-router's `<Link asChild>` around a styled `Pressable`.** The
@@ -105,6 +126,21 @@ organizer fields explicitly so `stripeAccountId` is never even fetched.
   "[Worklets] Failed to create a worklet" on the first Reanimated import. Hence
   `apps/mobile/babel.config.js`, and `babel-preset-expo` as a devDependency
   there so the config can name it. Keep the worklets plugin LAST.
+- **Over-the-air updates exist, and they cannot ship native changes.**
+  `expo-updates` is configured against EAS channels that match the build
+  profiles in `eas.json` — a `preview` update cannot reach a `production`
+  build. `runtimeVersion` uses the **fingerprint** policy, which hashes the
+  actual native dependency set, so an update can only land on a binary whose
+  native side matches it. The alternative (`appVersion`) is a human-maintained
+  string, and getting it wrong is silent: the update installs onto a binary
+  missing a native module and the app crashes on launch for everyone at once.
+  So: JS, assets and copy ship over the air in minutes; anything touching a
+  native module still needs a build and a review. Apple permits OTA for fixes
+  and content, not for changing what the app fundamentally does.
+- **`expo prebuild` regenerates `ios/`, and `.xcode.env.local` is where local
+  native fixes go.** Plain `prebuild` leaves that file alone; `prebuild --clean`
+  does not. The Sentry upload flag lives there, so a `--clean` costs you a
+  build failure until it is put back.
 - **After changing any native dependency, restart Metro with `--clear`.** The
   transform cache survives an npm install and will happily keep serving the
   previous version's code.
@@ -151,6 +187,18 @@ An error that is byte-identical across attempts — same message, same log count
 - Dev server runs on **port 3100** (3000 may be taken by an unrelated project).
 - The database is local via `prisma dev`; `npm run db:start` writes the URL into
   `.env` because the port is assigned dynamically. Don't hardcode it.
+- **Vercel is not a backup for secrets.** All 11 production variables on
+  `happening3/happeningdtla-web-v63f` are marked **Sensitive**, which makes them
+  write-only: `vercel env pull` returns `[SENSITIVE]` placeholders and the
+  dashboard cannot show them either. The only copies live in the Supabase,
+  Stripe, Clerk and Resend dashboards. `vercel env pull` is still worth running
+  to learn *which* keys are set — that is how we found `EMAIL_FROM` was set all
+  along, which `/api/health` does not report.
+- **The seed only geocodes 13 of its 50 venues**, so the map looks nearly empty
+  against a local database while production has coordinates for all 56. Before
+  chasing a "missing pins" bug, check `venue.lat`/`lng` counts — the map has no
+  cap and no pagination, it simply cannot pin a venue with no coordinates, and
+  `NightDirectory` says so in the "N of M mapped" line.
 - Do not run `npm audit fix --force` — the sole advisory is in the Prisma CLI's
   config loader and the "fix" downgrades Prisma to v6.
 

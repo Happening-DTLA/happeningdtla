@@ -322,7 +322,7 @@ export default function MapScreen() {
               accessibilityRole="button"
               style={({ pressed }) => ({
                 marginHorizontal: space.lg,
-                backgroundColor: pressed ? "#a8db55" : theme.accent,
+                backgroundColor: pressed ? theme.accentPressed : theme.accent,
                 borderRadius: radius.control,
                 paddingVertical: 13,
                 alignItems: "center",

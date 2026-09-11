@@ -1,12 +1,11 @@
 import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { theme, space } from "@/theme";
+import { theme, space, radius, type } from "@/theme";
 import { useLikes } from "@/likes-store";
 import { TICKETING_ENABLED } from "@/features";
 import { API_BASE_URL } from "@/api";
 import { PROFILE_COPY, PROFILE_TYPES, useProfileType } from "@/profile-type";
-import { radius, type } from "@/theme";
 
 /**
  * Profile. Signed-out state only for now — auth arrives with checkout, since
@@ -24,19 +23,34 @@ function Row({
   hint?: string;
   onPress?: () => void;
 }) {
+  /**
+   * A row with nowhere to go does not pretend otherwise.
+   *
+   * Without this every "coming soon" row still highlighted under a finger,
+   * announced itself to VoiceOver as a button and carried a chevron — three
+   * separate promises of a destination that does not exist. The chevron is the
+   * loudest of them: it means "there is a screen behind this", so an inert row
+   * must not have one.
+   */
+  const inert = !onPress;
+
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
+      disabled={inert}
+      accessibilityRole={inert ? undefined : "button"}
+      accessibilityState={inert ? { disabled: true } : undefined}
       style={({ pressed }) => ({
-        backgroundColor: pressed ? theme.surface2 : theme.surface,
+        backgroundColor: pressed && !inert ? theme.surface2 : theme.surface,
         borderColor: theme.border,
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: radius.block,
         padding: space.lg,
         flexDirection: "row",
         alignItems: "center",
         gap: space.md,
+        // Held back rather than hidden: the row still says what is coming.
+        opacity: inert ? 0.55 : 1,
       })}
     >
       <Ionicons name={icon} size={20} color={theme.textMuted} />
@@ -44,7 +58,7 @@ function Row({
         <Text style={{ color: theme.text, fontSize: 15, fontWeight: "500" }}>{label}</Text>
         {hint ? <Text style={{ color: theme.textMuted, fontSize: 12 }}>{hint}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+      {inert ? null : <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />}
     </Pressable>
   );
 }
@@ -63,17 +77,25 @@ export default function ProfileScreen() {
           backgroundColor: theme.surface,
           borderColor: theme.border,
           borderWidth: 1,
-          borderRadius: 12,
+          borderRadius: radius.block,
           padding: space.xl,
           alignItems: "center",
           gap: space.md,
         }}
       >
         <Ionicons name="person-circle-outline" size={52} color={theme.textMuted} />
-        <Text style={{ color: theme.text, fontSize: 17, fontWeight: "700" }}>Not signed in</Text>
+        {/* Two promises this card used to make that the free night cannot keep:
+            that there are tickets to buy, and that there is somewhere to sign
+            in. There is neither — auth does not exist yet. Copy follows the
+            same flag the rest of ticketing does, so the day it flips back on
+            this is already true again rather than quietly wrong. */}
+        <Text style={{ color: theme.text, fontSize: 17, fontWeight: "700" }}>
+          {TICKETING_ENABLED ? "Not signed in" : "No account needed"}
+        </Text>
         <Text style={{ color: theme.textMuted, fontSize: 14, textAlign: "center", lineHeight: 21 }}>
-          You can buy tickets without an account. Sign in to keep them across
-          devices and follow venues you like.
+          {TICKETING_ENABLED
+            ? "You can buy tickets without an account. Sign in to keep them across devices and follow venues you like."
+            : "Your passport and saved venues live on this device. Art Night is free — nothing here asks you to sign up."}
         </Text>
       </View>
 
@@ -113,20 +135,18 @@ export default function ProfileScreen() {
       </View>
 
       <View style={{ gap: space.md }}>
-        {profileType === "ARTIST" ? (
-          <Row
-            icon="color-palette-outline"
-            label="Submit your work"
-            hint="Apply to exhibit in the gallery network"
-            onPress={() => router.push("/submit/artist")}
-          />
-        ) : null}
+        {/* One door to all four forms rather than a row per profile type. Two
+            of them are open to anyone — you do not have to call yourself a
+            performer to offer to play — and gating those behind a profile
+            switch would hide them from the people most likely to use them. */}
+        <Row
+          icon="sparkles-outline"
+          label="Get involved"
+          hint="Submit art, sell at a market, perform or volunteer"
+          onPress={() => router.push("/submit")}
+        />
         {profileType === "VENUE" ? (
-          <Row
-            icon="storefront-outline"
-            label="Host a space"
-            hint="Coming soon"
-          />
+          <Row icon="business-outline" label="Host a space" hint="Coming soon" />
         ) : null}
         {/* Top of the list on the night, because it is the only row here that
             changes while you are out. */}
@@ -156,7 +176,7 @@ export default function ProfileScreen() {
           hint="Getting there, and what to expect"
           onPress={() => router.push("/visitor-guide")}
         />
-        <Row icon="business-outline" label="For organizers" hint="Manage your venue's events" />
+        <Row icon="business-outline" label="For organizers" hint="Coming soon" />
         <Row
           icon="help-circle-outline"
           label="Support"

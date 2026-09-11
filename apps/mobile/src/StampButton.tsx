@@ -124,7 +124,7 @@ export function StampButton({
         accessibilityRole="button"
         accessibilityState={{ checked: stamped }}
         style={({ pressed }) => ({
-          backgroundColor: stamped ? theme.surface : pressed ? "#a8db55" : theme.accent,
+          backgroundColor: stamped ? theme.surface : pressed ? theme.accentPressed : theme.accent,
           borderColor: stamped ? theme.accent : "transparent",
           borderWidth: 1,
           borderRadius: radius.control,

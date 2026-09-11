@@ -7,6 +7,7 @@ import {
 } from "@dtlahappening/core";
 import { prisma } from "@/lib/prisma";
 import { send } from "@/lib/email";
+import { createSubmissionFee, feeCollectingOrganizer } from "@/lib/participation-fees";
 
 /**
  * Validation for an artist application.
@@ -115,10 +116,33 @@ export async function createArtistSubmission(body: ArtistSubmissionBody) {
   // organisers never hear about is the same as one that was never made.
   await notifyOrganisers(submission);
 
-  return submission;
+  /**
+   * Their form charges to submit, not on acceptance, so the bill exists from
+   * this moment. It is created AFTER the submission commits and deliberately
+   * cannot undo it: an artist who typed for ten minutes should not lose the
+   * lot because Stripe was briefly unreachable or because nobody has finished
+   * Connect onboarding yet. An unpaid submission is a real state the review
+   * queue can show; a lost one is not recoverable.
+   */
+  let fee: Awaited<ReturnType<typeof createSubmissionFee>> | null = null;
+  try {
+    const organizer = await feeCollectingOrganizer();
+    fee = await createSubmissionFee(submission.id, organizer.id);
+  } catch (err) {
+    console.error("[submissions] could not raise the submission fee", err);
+  }
+
+  return { ...submission, fee };
 }
 
-type SubmissionWithArtworks = Awaited<ReturnType<typeof createArtistSubmission>>;
+/**
+ * The submission as it exists BEFORE a fee is raised against it.
+ *
+ * `Omit` rather than deriving straight from createArtistSubmission, which now
+ * returns the fee alongside it — without this, the notification's parameter
+ * type would demand a fee that does not exist yet at the point it is called.
+ */
+type SubmissionWithArtworks = Omit<Awaited<ReturnType<typeof createArtistSubmission>>, "fee">;
 
 const REVIEW_INBOX = process.env.SUBMISSIONS_EMAIL?.trim() || "info@dtlaartnight.com";
 
